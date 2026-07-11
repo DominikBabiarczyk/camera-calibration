@@ -1,0 +1,86 @@
+% Project summary for camera calibration dataset and model work
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[polish]{babel}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\title{Podsumowanie prac nad projektem kalibracji kamery}
+\author{Zespół projektu}
+\date{25 czerwca 2026}
+
+\begin{document}
+\maketitle
+
+\section*{Cel projektu}
+Celem projektu jest wygenerowanie i wykorzystanie syntetycznych sekwencji obrazu szachownicy, tak aby sieć neuronowa mogła nauczyć się przewidywać parametry kamery oraz zniekształcenia optyczne.
+
+\section{Jak działa generowanie danych}
+Proces generowania danych jest konfiguracyjny i składa się z następujących etapów:
+\begin{enumerate}[leftmargin=*]
+    \item Wczytanie konfiguracji YAML z zakresami parametrów.
+    \item Losowanie parametrów statycznych kamery i zniekształceń dla całej sekwencji.
+    \item Dla każdej klatki losowanie niezależnej perspektywy szachownicy.
+    \item Obliczenie homografii i przekształcenie obrazu szachownicy według modelu kamery.
+    \item Zastosowanie zniekształcenia radialnego/tangencjalnego w oparciu o te same parametry kamery w całej sekwencji.
+    \item Zapis wygenerowanych obrazów oraz pliku \texttt{camera_params.yaml} w folderze sekwencji.
+\end{enumerate}
+
+\section{Elementy konfiguracji}
+Generowanie danych jest sterowane przez plik YAML, co pozwala łatwo modyfikować:
+\begin{itemize}[leftmargin=*]
+    \item zakresy ogniskowej i położenia punktu głównego kamery,
+    \item współczynniki zniekształceń: \texttt{k1}, \texttt{k2}, \texttt{p1}, \texttt{p2}, \texttt{k3},
+    \item parametry perspektywy i przesunięć,
+    \item liczbę próbek, liczbę sekwencji i tryb ograniczenia wyjścia poza obraz.
+\end{itemize}
+
+\section{Zrealizowane elementy}
+\begin{itemize}[leftmargin=*]
+    \item Skrypt augmentacji: \texttt{generate_dataset/creating_various_perspectives/augment_perspectives.py}.
+    \item Konfiguracja kamery i zniekształceń w \texttt{camera_calibration_config.yaml}.
+    \item Generowanie sekwencji o stałych parametrach zniekształceń i zmiennej perspektywie klatek.
+    \item Zapisywanie etykiet sekwencji w formacie YAML dla sieci neuronowej.
+    \item Katalog modeli: \texttt{src/networks_tool/models/}.
+    \item Skrypt uruchamiający trening: \texttt{run_sequence_training.sh}.
+\end{itemize}
+
+\section{Dodane modele}
+W projekcie dodano kilka wariantów sieci:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{ResNet-18 single-frame} - szybki, bazowy model przetwarzający pojedynczy obraz.
+    \item \textbf{ResNet-50 single-frame} - większy model do pojedynczego obrazu.
+    \item \textbf{EfficientNet-B0 single-frame} - model o lepszym stosunku efektywności do jakości.
+    \item \textbf{CNN+LSTM sequence} - model sekwencyjny agregujący cechy z kolejnych klatek.
+    \item \textbf{CNN+Transformer sequence} - model sekwencyjny z mechanizmem uwagi dla relacji pomiędzy klatkami.
+\end{itemize}
+
+\section{Struktura danych}
+\begin{itemize}[leftmargin=*]
+    \item Każda sekwencja jest zapisywana w osobnym katalogu, np. \texttt{data/aug_camera_test_seq/sequence_000/}.
+    \item W folderze znajdują się kolejno numerowane obrazy oraz plik \texttt{camera_params.yaml}.
+    \item Plik \texttt{camera_params.yaml} zawiera parametry kamery, które sieć ma przewidywać.
+\end{itemize}
+
+\section{Zrealizowane dzisiaj (25 czerwca 2026)}
+\begin{itemize}[leftmargin=*]
+    \item Rozszerzono proces generowania danych o sekwencje z jednorodnymi zniekształceniami kamery.
+    \item Wprowadzono zapis etykiet sekwencji w pliku \texttt{camera_params.yaml}.
+    \item Utworzono katalog modeli z architekturami single-frame i sekwencyjnymi.
+    \item Dostosowano dataset i trening do odczytu sekwencji oraz do przewidywania parametrów kamer.
+    \item Dodano skrypt uruchamiający trening sekwencyjny: \texttt{run_sequence_training.sh}.
+    \item Poprawiono problem nan w stratach sekwencji przez normalizację targetów w datasetcie.
+\end{itemize}
+
+\section{Instrukcja uruchomienia treningu sekwencji}
+\begin{verbatim}
+./run_sequence_training.sh 5 cnn_lstm_sequence 50 8 1e-4
+\end{verbatim}
+
+\section*{Uwagi}
+Projekt jest konfigurowalny i gotowy do testów z różnymi modelami oraz różnymi długościami sekwencji.
+
+\end{document}

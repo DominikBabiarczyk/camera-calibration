@@ -1,0 +1,129 @@
+# Camera calibration-style augmentation configuration
+# The camera parameters are sampled from ranges and used to project the board
+# through a synthetic camera model, including distortion coefficients.
+
+mode: camera
+
+board_cols: # number of chessboard inner corners in x direction
+  min: 7
+  max: 9
+  unit: count
+  description: "Number of inner corners in the horizontal direction"
+
+board_rows: # number of chessboard inner corners in y direction
+  min: 4
+  max: 6
+  unit: count
+  description: "Number of inner corners in the vertical direction"
+
+square_size: # square size as a fraction of image max dimension
+  min: 0.08
+  max: 0.16
+  unit: max_dim_factor
+  description: "Edge length of one board square relative to image size"
+
+fx: # focal length in pixels relative to image max dimension
+  min: 0.8
+  max: 1.4
+  unit: max_dim_factor
+  description: "Focal length in x direction"
+
+fy: # focal length in pixels relative to image max dimension
+  min: 0.8
+  max: 1.4
+  unit: max_dim_factor
+  description: "Focal length in y direction"
+
+principal_point_x: # principal point offset as fraction of width
+  min: 0.45
+  max: 0.55
+  unit: fraction
+  description: "Normalized principal point x coordinate"
+
+principal_point_y: # principal point offset as fraction of height
+  min: 0.45
+  max: 0.55
+  unit: fraction
+  description: "Normalized principal point y coordinate"
+
+k1: # first radial distortion coefficient
+  min: -0.7
+  max: 0.7
+  unit: coeff
+  description: "Radial distortion k1"
+
+k2:
+  min: -0.4
+  max: 0.4
+  unit: coeff
+  description: "Radial distortion k2"
+
+p1: # tangential distortion coefficient
+  min: -0.2
+  max: 0.2
+  unit: coeff
+  description: "Tangential distortion p1"
+
+p2:
+  min: -0.2
+  max: 0.2
+  unit: coeff
+  description: "Tangential distortion p2"
+
+k3:
+  min: -0.2
+  max: 0.2
+  unit: coeff
+  description: "Radial distortion k3"
+
+pitch_deg:
+  min: -20
+  max: 20
+  unit: degrees
+  description: "Camera pitch (tilt forward/back)"
+
+yaw_deg:
+  min: -20
+  max: 20
+  unit: degrees
+  description: "Camera yaw (turn left/right)"
+
+roll_deg:
+  min: -10
+  max: 10
+  unit: degrees
+  description: "Camera roll"
+
+# translation of the board in camera space, relative to image size
+# z controls the camera distance from the board plane.
+tvec_x:
+  min: -0.2
+  max: 0.2
+  unit: width_fraction
+  description: "Camera translation x relative to image width"
+
+tvec_y:
+  min: -0.2
+  max: 0.2
+  unit: height_fraction
+  description: "Camera translation y relative to image height"
+
+tvec_z:
+  min: 0.9
+  max: 1.8
+  unit: max_dim_factor
+  description: "Camera distance from board plane relative to image max dimension"
+
+# Sampling settings
+samples: 50
+sequences: 1
+seed: 4
+allow_out_of_bounds: false
+max_resample_attempts: 100
+border_mode: constant
+border_color: [255, 255, 255]
+
+# Notes:
+# - `board_cols` and `board_rows` are inner corner counts.
+# - The script uses these parameters to sample a camera matrix and project the
+#   chessboard through a synthetic calibrated camera model.

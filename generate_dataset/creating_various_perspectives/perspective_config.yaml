@@ -1,0 +1,97 @@
+# Perspective augmentation configuration
+# Each parameter contains a `min`, `max` and optional `unit` and `description`.
+# Values will be sampled uniformly from [min, max] unless stated otherwise.
+
+mode: perspective
+
+zoom: # distance scaling (1.0 = original camera distance)
+  min: 1 #0.9
+  max: 1 #1.4
+  unit: factor
+  description: "Zoom in (>1) or out (<1) by scaling focal length/distance"
+
+pitch_deg: # rotation around X axis (tilt forward/back)
+  min: 0 #-25
+  max: 0 #25
+  unit: degrees
+  description: "Positive = tilt down (top of board farther)"
+
+yaw_deg: # rotation around Y axis (turn left/right)
+  min: 0 #-25
+  max: 0 #25
+  unit: degrees
+  description: "Positive = turn right"
+
+roll_deg: # rotation around Z axis (in-plane rotation)
+  min: 0 #-10
+  max: 0 #10
+  unit: degrees
+  description: "Camera roll (in-plane rotation)"
+
+translate_x: # horizontal translation relative to image width
+  min: 0 #-0.15
+  max: 0 #0.15
+  unit: fraction
+  description: "Shift image horizontally as fraction of width"
+
+translate_y: # vertical translation relative to image height
+  min: 0 #-0.15
+  max: 0 #0.15
+  unit: fraction
+  description: "Shift image vertically as fraction of height"
+
+perspective_skew: # projective skew applied to image corners
+  min: 0 #-0.08
+  max: 0 #0.08
+  unit: fraction
+  description: "Small projective perturbation to simulate skew/distortion"
+
+corner_shift_px: # maximum random shift applied independently to each corner
+  min: 0
+  max: 0 # 15
+  unit: pixels
+  description: "Random jitter of each image corner to simulate viewpoint/placement"
+
+focal_length_scale: # multiplier applied to a base focal length (relative)
+  min: 1.0 #0.9
+  max: 1.0 #1.3
+  unit: factor
+  description: "Simulate different focal lengths / effective zoom"
+
+shear_x: # small in-plane shear (affine)
+  min: -0.05
+  max: 0.05
+  unit: fraction
+  description: "Horizontal shear to mimic imperfect alignment"
+
+shear_y:
+  min: -0.05
+  max: 0.05
+  unit: fraction
+  description: "Vertical shear to mimic imperfect alignment"
+
+radial_distortion: # placeholder for radial distortion simulation (k1)
+  min: -0.0005
+  max: 0.0005
+  unit: coeff
+  description: "Small radial distortion coefficient (applied optionally)"
+
+# Sampling settings
+samples: 50
+seed: 33 # integer or null; if provided, makes augmentation reproducible
+
+# Out-of-bounds handling: try to resample parameters until the projected
+# corners land inside the target frame. If `allow_out_of_bounds` is true,
+# the script will accept transforms that map corners outside the image.
+allow_out_of_bounds: false
+max_resample_attempts: 100
+# border_mode: one of 'constant' (black), 'reflect', 'replicate'
+border_mode: constant
+# Border color used when `border_mode: constant`. Format: [B, G, R]
+border_color: [255, 255, 255]
+
+# Notes:
+# - Units are for human readers; the augmentation script interprets fractions
+#   relative to image size and degrees for rotations.
+# - Add more keys to extend the transformations; the script loads keys
+#   dynamically and ignores extra keys it doesn't need.
