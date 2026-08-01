@@ -12,6 +12,8 @@ Files:
 - `augment_perspectives.py`: script that loads the YAML, samples parameters,
   builds a homography or camera-based mesh warp, and writes warped images to an
   output directory.
+- `generate_corner_sequences.py`: script that samples the same camera geometry
+  but saves processed chessboard corner sequences instead of images.
 - `requirements.txt`: minimal Python dependencies.
 
 Quick usage:
@@ -38,3 +40,18 @@ python generate_dataset/creating_various_perspectives/augment_perspectives.py \
   --count 50 \
   --seed 42
 ```
+
+Corner-only dataset usage:
+
+```bash
+python generate_dataset/creating_various_perspectives/generate_corner_sequences.py \
+  --outdir data/aug_camera_test_seq_corners \
+  --config generate_dataset/creating_various_perspectives/camera_calibration_config.yaml \
+  --count 10 \
+  --sequences 20000 \
+  --seed 42
+```
+
+The generated folders can be used directly with the corner-based trainer,
+because each sequence folder contains `corner_sequence.npz` and
+`camera_params.yaml`.

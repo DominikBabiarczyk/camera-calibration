@@ -215,5 +215,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 data/
-outputs/
+outputs/*
+!outputs/calibration_net/
+# !outputs/calibration_net/**
 src/calibration_cv/pairs/

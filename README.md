@@ -128,6 +128,16 @@ Mozna tez uzyc gotowego skryptu:
 ./run_sequence_training.sh 5 cnn_lstm_sequence 50 8 1e-4
 ```
 
+Trening modelu `corner_gru_sequence` moze teraz generowac sekwencje rogów w locie, bez zapisu datasetu na dysk:
+
+```bash
+./run_corner_sequence_training.sh 30 16 1e-3 8 0.0 20000 \
+	generate_dataset/creating_various_perspectives/camera_calibration_config.yaml \
+	5000 42
+```
+
+W tym trybie argument `train_sequences` okresla, ile sekwencji zostanie wygenerowanych na biezaco w kazdej epoce, a `val_sequences` ile deterministycznych sekwencji zostanie wygenerowanych dla walidacji.
+
 Najlepszy checkpoint jest zapisywany do:
 
 ```text
