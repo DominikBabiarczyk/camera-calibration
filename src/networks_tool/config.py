@@ -17,12 +17,27 @@ class TrainingConfig:
     # --- Dataset ---
     image_size: tuple[int, int] = (224, 224)
     # How many synthetic distorted samples to generate per source image
-    samples_per_image: int = 10
+    samples_per_image: int = 20
     train_split: float = 0.8
+    max_source_items: int | None = None
+    max_validation_items: int | None = None
     sequence_mode: bool = False
+    corner_sequence_mode: bool = False
+    synthetic_corner_sequence_mode: bool = False
     sequence_length: int = 5
     sequence_step: int = 1
     model_name: str = "resnet18_single"
+    corner_num_squares_x: int = 9
+    corner_num_squares_y: int = 6
+    synthetic_corner_config_path: Path = Path(
+        "generate_dataset/creating_various_perspectives/camera_calibration_config.yaml"
+    )
+    synthetic_image_width: int = 640
+    synthetic_image_height: int = 480
+    synthetic_board_cols: int = 8
+    synthetic_board_rows: int = 5
+    synthetic_square_size: float = 48.0
+    synthetic_seed: int = 42
 
     # --- Distortion parameter ranges (Brown-Conrady model) ---
     # Focal length range (normalized by image width)
@@ -38,6 +53,8 @@ class TrainingConfig:
     learning_rate: float = 1e-4
     weight_decay: float = 1e-5
     num_workers: int = 4
+    early_stopping_patience: int = 10
+    early_stopping_min_delta: float = 0.0
 
     # --- Output vector definition ---
     # The network predicts: [focal_length_normalized, k1, k2]

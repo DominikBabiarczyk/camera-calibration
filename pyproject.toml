@@ -9,8 +9,10 @@ dependencies = [
     "numpy>=2.4.4",
     "opencv-python>=4.13.0.92",
     "matplotlib>=3.10.8",
+    "pandas>=2.2",
     "torch>=2.0",
     "torchvision>=0.15",
+    "ipykernel>=6.29",
     "pyyaml>=6.0",
     "tqdm>=4.66",
 ]

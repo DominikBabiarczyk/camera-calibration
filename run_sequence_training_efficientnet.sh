@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run single-frame training on images from the generated augmented dataset.
+# Run single-frame training with the EfficientNet-B0 backbone on the generated augmented dataset.
 # Usage:
-#   ./run_sequence_training.sh [model_name] [epochs] [batch_size] [lr] [patience] [min_delta] [max_images] [samples_per_image] [source_dir] [max_val_images]
+#   ./run_sequence_training_efficientnet.sh [model_name] [epochs] [batch_size] [lr] [patience] [min_delta] [max_images] [samples_per_image] [source_dir] [max_val_images]
 # Example:
-#   ./run_sequence_training.sh resnet50_single 10 8 1e-4 5 0.0 50000 1 data/aug_camera_test_seq 5000
+#   ./run_sequence_training_efficientnet.sh efficientnet_b0_single 10 8 1e-4 5 0.0 50000 1 data/aug_camera_test_seq 5000
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
-MODEL_NAME="${1:-resnet50_single}"
+MODEL_NAME="${1:-efficientnet_b0_single}"
 EPOCHS="${2:-1}"
 BATCH_SIZE="${3:-8}"
 LR="${4:-1e-4}"
