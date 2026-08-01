@@ -1,0 +1,156 @@
+% ============================================================================
+%  Rozdział: Interpretacja parametrów intrinsics dla Intel RealSense
+% ============================================================================
+\documentclass[12pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[polish]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\begin{document}
+
+\chapter{Interpretacja parametrów \texttt{intrinsics} zapisanych z kamery Intel RealSense}
+\label{chap:intrinsics-realsense}
+
+\section{Wprowadzenie}
+Funkcja \texttt{intrinsics\_to\_dict(intr)} zapisuje do pliku JSON podstawowe parametry wewnętrzne kamery:
+\texttt{width}, \texttt{height}, \texttt{fx}, \texttt{fy}, \texttt{cx}, \texttt{cy} oraz strukturę
+\texttt{distortion}. Parametry te pochodzą bezpośrednio z obiektu \texttt{rs2\_intrinsics}
+udostępnianego przez bibliotekę Intel RealSense SDK 2.0. Dokumentacja API producenta
+precyzuje znaczenie każdego pola, w tym jego interpretację geometryczną i jednostki.
+
+W notacji stosowanej w literaturze kalibracji kamery oraz w OpenCV parametry te tworzą
+macierz wewnętrzną kamery
+\begin{equation}
+K =
+\begin{bmatrix}
+f_x & 0   & c_x \\
+0   & f_y & c_y \\
+0   & 0   & 1
+\end{bmatrix}.
+\end{equation}
+Dokumentacja OpenCV wprost podaje, że $f_x$ i $f_y$ są wyrażone w jednostkach pikselowych,
+a $(c_x, c_y)$ jest punktem głównym obrazu.
+
+\section{Znaczenie poszczególnych pól}
+Tabela~\ref{tab:intrinsics-meaning} zestawia pola zapisane przez funkcję oraz ich znaczenie
+zgodne z dokumentacją \texttt{rs2\_intrinsics}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Znaczenie pól zapisywanych przez \texttt{intrinsics\_to\_dict}.}
+    \label{tab:intrinsics-meaning}
+    \begin{tabular}{@{}p{2.6cm}p{3.2cm}p{8cm}@{}}
+        \toprule
+        \textbf{Pole} & \textbf{Jednostka} & \textbf{Znaczenie} \\
+        \midrule
+        \texttt{width} & piksele & Szerokość obrazu w pikselach. Dokumentacja \texttt{rs2\_intrinsics} definiuje to pole jako \emph{Width of the image in pixels}. \\
+        \texttt{height} & piksele & Wysokość obrazu w pikselach. Dokumentacja definiuje to pole jako \emph{Height of the image in pixels}. \\
+        \texttt{fx} & piksele & Ogniskowa w osi poziomej. Producent opisuje ją jako \emph{Focal length of the image plane, as a multiple of pixel width}, co odpowiada ogniskowej wyrażonej w skali piksela wzdłuż osi $x$. \\
+        \texttt{fy} & piksele & Ogniskowa w osi pionowej. Producent opisuje ją jako \emph{Focal length of the image plane, as a multiple of pixel height}, czyli ogniskową w skali piksela wzdłuż osi $y$. \\
+        \texttt{cx} & piksele & Współrzędna pozioma punktu głównego obrazu. W kodzie jest to \texttt{intr.ppx}; dokumentacja określa to pole jako \emph{Horizontal coordinate of the principal point of the image, as a pixel offset from the left edge}. \\
+        \texttt{cy} & piksele & Współrzędna pionowa punktu głównego obrazu. W kodzie jest to \texttt{intr.ppy}; dokumentacja określa to pole jako \emph{Vertical coordinate of the principal point of the image, as a pixel offset from the top edge}. \\
+        \texttt{distortion.model} & typ modelu & Nazwa modelu dystorsji przypisanego do danego strumienia obrazu. \\
+        \texttt{distortion.coefficients} & bezwymiarowe & Pięcioelementowy wektor współczynników dystorsji. Dla modelu Brown--Conrady kolejność według dokumentacji RealSense to \mbox{$[k_1, k_2, p_1, p_2, k_3]$}. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Interpretacja geometryczna}
+Parametry $f_x$ i $f_y$ nie są tutaj wyrażone w milimetrach, lecz w pikselach. Jest to bardzo
+istotne przy interpretacji wyników, ponieważ w zapisie SDK RealSense nie dostajemy bezpośrednio
+ogniskowej fizycznej soczewki, tylko ogniskową przeskalowaną do siatki obrazu. Z tego powodu
+wartości \texttt{fx} i \texttt{fy} określają skalę projekcji perspektywicznej bezpośrednio
+w układzie obrazu. Informacja, że są to jednostki pikselowe, nie jest założeniem interpretacyjnym,
+lecz wynika wprost z dokumentacji producenta oraz z dokumentacji OpenCV.
+
+Punkt główny $(c_x, c_y)$ określa położenie przecięcia osi optycznej z płaszczyzną obrazu.
+W dokumentacji producenta jest on podany jako przesunięcie pikselowe od lewego oraz górnego
+brzegu obrazu. Oznacza to, że wartości \texttt{cx} i \texttt{cy} należy interpretować w tym
+samym układzie współrzędnych obrazu, w którym indeksowane są piksele. Dla obrazu o szerokości
+$W$ i wysokości $H$ punkt główny idealnie centralny miałby współrzędne zbliżone do
+$(W/2, H/2)$, lecz w praktyce może być od środka nieznacznie przesunięty.
+
+\section{Znaczenie pola \texttt{distortion}}
+Pole \texttt{distortion} zapisuje dwa elementy: nazwę modelu oraz wektor współczynników.
+Dokumentacja RealSense dla struktury \texttt{rs2\_intrinsics} podaje, że dla modelu
+Brown--Conrady współczynniki są uporządkowane jako
+\begin{equation}
+    [k_1, k_2, p_1, p_2, k_3],
+\end{equation}
+co jest zgodne z konwencją stosowaną również w OpenCV. W tej interpretacji:
+\begin{itemize}
+    \item $k_1$, $k_2$, $k_3$ opisują dystorsję radialną,
+    \item $p_1$, $p_2$ opisują dystorsję tangencjalną.
+\end{itemize}
+
+Jest to ważne, ponieważ kolejność współczynników nie jest dowolna. Jeżeli dalsza analiza,
+kalibracja lub porównanie z OpenCV zakłada model Brown--Conrady, to wektor z pliku JSON można
+bezpośrednio odczytywać jako $[k_1, k_2, p_1, p_2, k_3]$.
+
+\section{Do jakich dokumentów odnosi się ta interpretacja}
+Znaczenie tych parametrów nie wynika z przypuszczeń ani z nieformalnych opisów w internecie,
+tylko z dokumentacji bibliotek, które definiują używane typy danych i model kamery.
+Najważniejsze odniesienia są następujące:
+\begin{itemize}
+    \item dokumentacja struktury \texttt{rs2\_intrinsics} w \texttt{librealsense2}, ponieważ to ona
+        definiuje pola \texttt{width}, \texttt{height}, \texttt{ppx}, \texttt{ppy}, \texttt{fx}, \texttt{fy},
+        \texttt{model} i \texttt{coeffs},
+    \item dokumentacja enumeracji \texttt{rs2\_distortion}, ponieważ to ona opisuje, jak należy rozumieć
+        nazwy modeli dystorsji przypisane do pola \texttt{model},
+    \item dokumentacja OpenCV \texttt{calib3d}, ponieważ potwierdza standardową postać macierzy kamery
+        oraz użycie parametrów $f_x$, $f_y$, $c_x$, $c_y$ i współczynników dystorsji
+        $[k_1, k_2, p_1, p_2, k_3]$ w powszechnie stosowanej praktyce kalibracyjnej.
+\end{itemize}
+
+Z punktu widzenia poprawności biblioteki najistotniejsze jest to, że pola odczytywane w Pythonie
+przez \texttt{pyrealsense2} odpowiadają bezpośrednio polom struktury \texttt{rs2\_intrinsics}
+opisanej w dokumentacji \texttt{librealsense2}. Oznacza to, że skrypt nie tworzy własnej,
+nieudokumentowanej interpretacji parametrów, lecz tylko serializuje dane zwracane przez oficjalne
+API producenta.
+
+\section{Dlaczego można uznać te informacje za wiarygodne}
+Wiarygodność tej interpretacji opiera się na zgodności trzech poziomów opisu:
+\begin{itemize}
+    \item poziomu implementacyjnego: skrypt odczytuje pola bezpośrednio z obiektu zwracanego przez SDK,
+    \item poziomu API: dokumentacja \texttt{rs2\_intrinsics} definiuje te pola jednoznacznie,
+    \item poziomu modelu matematycznego: OpenCV używa tej samej notacji i tej samej interpretacji
+        macierzy wewnętrznej kamery oraz wektora dystorsji.
+\end{itemize}
+
+W praktyce oznacza to, że gdy dokumentacja producenta mówi o \emph{pixel offset from the left edge},
+to \texttt{cx} i \texttt{cy} należy interpretować jako współrzędne punktu głównego w układzie
+obrazu, a gdy mówi o \emph{focal length as a multiple of pixel width/height}, to \texttt{fx}
+i \texttt{fy} należy traktować jako ogniskowe wyrażone w pikselach. Z kolei zgodność z OpenCV
+potwierdza, że nie jest to specyficzna, niestandardowa konwencja jednej biblioteki, ale część
+szerszego, powszechnie używanego modelu kamery otworkowej z dystorsją.
+
+\section{Wnioski}
+Funkcja \texttt{intrinsics\_to\_dict(intr)} zapisuje standardowy zestaw parametrów
+wewnętrznych kamery zgodny z definicją struktury \texttt{rs2\_intrinsics} w Intel RealSense
+SDK 2.0. Najważniejsze wnioski interpretacyjne są następujące:
+\begin{enumerate}
+    \item \texttt{width} i \texttt{height} są rozmiarem obrazu w pikselach.
+    \item \texttt{fx} i \texttt{fy} są ogniskowymi wyrażonymi w jednostkach pikselowych,
+          a nie w milimetrach.
+    \item \texttt{cx} i \texttt{cy} odpowiadają punktowi głównemu obrazu i są mierzone jako
+          przesunięcie od lewego oraz górnego brzegu obrazu.
+    \item \texttt{distortion.coefficients} dla modelu Brown--Conrady należy interpretować jako
+          $[k_1, k_2, p_1, p_2, k_3]$.
+    \item Podstawą tych stwierdzeń są oficjalna dokumentacja Intel RealSense / librealsense2
+        oraz zgodna z nią dokumentacja OpenCV.
+\end{enumerate}
+
+\section*{Źródła}
+\begin{enumerate}
+    \item Intel RealSense / librealsense2, dokumentacja struktury \texttt{rs2\_intrinsics}: \href{https://docs.ros.org/en/rolling/p/librealsense2/generated/structrs2__intrinsics.html}{docs.ros.org/en/rolling/p/librealsense2/generated/structrs2\_\_intrinsics.html}.
+    \item Intel RealSense / librealsense2, dokumentacja enumeracji \texttt{rs2\_distortion}: \href{https://docs.ros.org/en/rolling/p/librealsense2/generated/enum_rs__types_8h_1a96a8444bedb23db02c92712e0a0c37ae.html}{docs.ros.org/en/rolling/p/librealsense2/generated/enum\_rs\_\_types\_8h\_1a96a8444bedb23db02c92712e0a0c37ae.html}.
+    \item OpenCV 4.x, moduł \texttt{calib3d}, dokumentacja macierzy wewnętrznej kamery i współczynników dystorsji: \href{https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html}{docs.opencv.org/4.x/d9/d0c/group\_\_calib3d.html}.
+\end{enumerate}
+
+\end{document}

@@ -1,0 +1,103 @@
+{
+    "timestamp": "2026-07-17 11:55:37.959217",
+    "device": {
+        "camera_info.name": "Intel RealSense D415",
+        "camera_info.serial_number": "821212062680",
+        "camera_info.firmware_version": "5.12.15.50",
+        "camera_info.product_id": "0AD3",
+        "camera_info.product_line": "D400",
+        "camera_info.usb_type_descriptor": "3.2"
+    },
+    "sensors": {
+        "Stereo Module": {
+            "options": {}
+        },
+        "RGB Camera": {
+            "options": {}
+        }
+    },
+    "streams": {
+        "stream.depth": {
+            "intrinsics": {
+                "width": 1280,
+                "height": 720,
+                "fx": 936.2005004882812,
+                "fy": 936.2005004882812,
+                "cx": 640.8578491210938,
+                "cy": 357.6516418457031,
+                "distortion": {
+                    "model": "distortion.brown_conrady",
+                    "coefficients": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            },
+            "fps": 30,
+            "format": "format.z16"
+        },
+        "stream.color": {
+            "intrinsics": {
+                "width": 1920,
+                "height": 1080,
+                "fx": 1388.593994140625,
+                "fy": 1387.6966552734375,
+                "cx": 945.7451782226562,
+                "cy": 549.893798828125,
+                "distortion": {
+                    "model": "distortion.inverse_brown_conrady",
+                    "coefficients": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            },
+            "fps": 30,
+            "format": "format.rgb8"
+        }
+    },
+    "extrinsics": {
+        "stream.depth_TO_stream.color": {
+            "rotation_matrix": [
+                0.9999988675117493,
+                -0.0014802340883761644,
+                0.0001211883791256696,
+                0.0014794886810705066,
+                0.9999812841415405,
+                0.0059364172630012035,
+                -0.00012997339945286512,
+                -0.005936231464147568,
+                0.9999823570251465
+            ],
+            "translation_meters": [
+                0.015016579069197178,
+                7.692752114962786e-05,
+                -0.00037365045864135027
+            ]
+        },
+        "stream.color_TO_stream.depth": {
+            "rotation_matrix": [
+                0.9999988675117493,
+                0.0014794886810705066,
+                -0.00012997339945286512,
+                -0.0014802340883761644,
+                0.9999812841415405,
+                -0.005936231464147568,
+                0.0001211883791256696,
+                0.0059364172630012035,
+                0.9999823570251465
+            ],
+            "translation_meters": [
+                -0.01501640398055315,
+                -9.692478488432243e-05,
+                0.0003760522813536227
+            ]
+        }
+    }
+}

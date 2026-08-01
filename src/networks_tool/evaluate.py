@@ -18,18 +18,33 @@ from torchvision import transforms
 
 from .config import TrainingConfig
 from .model import CalibrationNet
+from .models import CNNLSTMCalibrationNet, CNNTransformerCalibrationNet, CornerGRUCalibrationNet
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def load_model(checkpoint_path: Path, device: torch.device) -> CalibrationNet:
-    """Load a trained CalibrationNet from checkpoint."""
+def load_model(checkpoint_path: Path, device: torch.device) -> torch.nn.Module:
+    """Load a trained calibration model from checkpoint."""
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     config: TrainingConfig = checkpoint["config"]
 
-    model = CalibrationNet(num_outputs=config.num_outputs, pretrained=False)
-    model.load_state_dict(checkpoint["model_state_dict"])
+    model_map = {
+        "resnet18_single": CalibrationNet,
+        "resnet50_single": CalibrationNet,
+        "efficientnet_b0_single": CalibrationNet,
+        "cnn_lstm_sequence": CNNLSTMCalibrationNet,
+        "cnn_transformer_sequence": CNNTransformerCalibrationNet,
+        "corner_gru_sequence": CornerGRUCalibrationNet,
+    }
+    model_cls = model_map.get(config.model_name, CalibrationNet)
+    model = model_cls(num_outputs=config.num_outputs, pretrained=False)
+    strict = config.model_name != "corner_gru_sequence"
+    model.load_state_dict(checkpoint["model_state_dict"], strict=strict)
+    if not strict:
+        logger.warning(
+            "Loaded GRU checkpoint with strict=False; cnn/frame_proj weights are missing."
+        )
     model.to(device)
     model.eval()
 

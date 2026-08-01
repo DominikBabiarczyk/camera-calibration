@@ -1,0 +1,205 @@
+% ============================================================================
+%  Rozdział: Struktura modeli sieci neuronowych
+%  Plik przeznaczony do samodzielnej kompilacji lub włączenia przez \input{}
+%  do głównego dokumentu pracy magisterskiej.
+% ============================================================================
+\documentclass[12pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[polish]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue!70!black},
+  commentstyle=\color{green!45!black},
+  stringstyle=\color{red!60!black},
+  breaklines=true,
+  frame=single,
+  language=Python,
+  showstringspaces=false,
+}
+
+\begin{document}
+
+\chapter{Struktura zaimplementowanych modeli sieci neuronowych}
+\label{chap:struktura-modeli}
+
+\section{Wprowadzenie}
+W katalogu \texttt{src/networks\_tool/models/} zebrano pięć architektur sieci
+neuronowych przeznaczonych do regresji parametrów kalibracji kamery. Modele te
+dzielą się na dwie rodziny:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{modele jednoklatkowe} (\emph{single-frame}), które estymują parametry
+        kamery na podstawie pojedynczego obrazu wejściowego,
+  \item \textbf{modele sekwencyjne} (\emph{sequence}), które agregują informację z krótkiej
+        sekwencji klatek przedstawiających tę samą, nieruchomą kamerę obserwującą wzorzec
+        z różnych perspektyw.
+\end{itemize}
+
+Wszystkie modele realizują wspólny wzorzec projektowy zaczerpnięty z uczenia
+transferowego (\emph{transfer learning}): sieć konwolucyjna wstępnie wytrenowana na zbiorze
+ImageNet pełni rolę \emph{ekstraktora cech} (ang. \emph{backbone}), z którego usunięto
+warstwę klasyfikacyjną, a na jej miejsce dołączono \emph{głowicę regresyjną}
+(ang. \emph{regression head}) w postaci wielowarstwowego perceptronu z regularyzacją
+metodą \emph{dropout}. Uzasadnieniem tego podejścia jest fakt, że cechy niskiego i
+średniego poziomu (krawędzie, łuki, gradienty) wyuczone na naturalnych obrazach są
+bezpośrednio powiązane z efektami zniekształceń optycznych, które model ma odtworzyć.
+
+\section{Wspólna definicja wektora wyjściowego}
+Modele jednoklatkowe przewidują trójelementowy wektor
+\begin{equation}
+  \mathbf{y}_{\text{single}} = \big[\, f_{\text{norm}},\; k_1,\; k_2 \,\big],
+\end{equation}
+gdzie $f_{\text{norm}} = f / W$ jest ogniskową znormalizowaną szerokością obrazu $W$,
+a $k_1, k_2$ to współczynniki dystorsji radialnej modelu Browna--Conrady'ego.
+
+Modele sekwencyjne przewidują pełny, dziewięcioelementowy wektor parametrów wewnętrznych
+i zniekształceń
+\begin{equation}
+  \mathbf{y}_{\text{seq}} = \big[\, f_x,\; f_y,\; c_x,\; c_y,\; k_1,\; k_2,\; p_1,\; p_2,\; k_3 \,\big],
+\end{equation}
+w którym $(f_x, f_y)$ to ogniskowe, $(c_x, c_y)$ współrzędne punktu głównego, a
+$(k_1, k_2, k_3)$ oraz $(p_1, p_2)$ odpowiadają współczynnikom dystorsji radialnej i
+tangencjalnej. Wartości te są normalizowane rozmiarem obrazu przed treningiem.
+
+\section{Modele jednoklatkowe}
+
+\subsection{ResNet-18 (model bazowy)}
+Klasa \texttt{ResNet18CalibrationNet} wykorzystuje sieć ResNet-18 jako ekstraktor cech.
+Po globalnym uśrednieniu przestrzennym otrzymywany jest wektor cech o wymiarze
+$d = 512$. Głowica regresyjna ma strukturę
+\begin{equation}
+  512 \xrightarrow{\text{Lin}} 256 \xrightarrow[\text{Dropout }0.3]{\text{ReLU}}
+  64 \xrightarrow[\text{Dropout }0.2]{\text{ReLU}} n_{\text{out}} .
+\end{equation}
+Jest to najlżejszy i najszybszy z wariantów (ok. 11~mln parametrów w części splotowej),
+pełniący funkcję punktu odniesienia.
+
+\subsection{ResNet-50}
+Klasa \texttt{ResNet50CalibrationNet} zwiększa pojemność modelu, stosując głębszą sieć
+ResNet-50, dla której wymiar cech wynosi $d = 2048$. Odpowiednio poszerzono głowicę:
+\begin{equation}
+  2048 \xrightarrow{\text{Lin}} 512 \xrightarrow[\text{Dropout }0.3]{\text{ReLU}}
+  128 \xrightarrow[\text{Dropout }0.2]{\text{ReLU}} n_{\text{out}} .
+\end{equation}
+Większa liczba parametrów pozwala uchwycić bardziej złożone zależności kosztem
+dłuższego czasu wnioskowania.
+
+\subsection{EfficientNet-B0}
+Klasa \texttt{EfficientNetB0CalibrationNet} stanowi kompromis pomiędzy jakością a
+efektywnością obliczeniową. Ekstraktor EfficientNet-B0 zwraca wektor cech o wymiarze
+$d = 1280$, po którym następuje głowica
+\begin{equation}
+  1280 \xrightarrow{\text{Lin}} 256 \xrightarrow[\text{Dropout }0.3]{\text{ReLU}}
+  64 \xrightarrow[\text{Dropout }0.2]{\text{ReLU}} n_{\text{out}} .
+\end{equation}
+
+Wspólny schemat przetwarzania modeli jednoklatkowych można zapisać jako
+\begin{equation}
+  \mathbf{y} = \operatorname{Head}\big(\operatorname{Backbone}(\mathbf{x})\big),
+  \qquad \mathbf{x} \in \mathbb{R}^{B \times 3 \times H \times W}.
+\end{equation}
+
+\section{Modele sekwencyjne}
+
+\subsection{CNN + LSTM}
+Klasa \texttt{CNNLSTMCalibrationNet} przetwarza tensor o kształcie
+$(B, T, 3, H, W)$, gdzie $T$ oznacza liczbę klatek w oknie czasowym. Każda klatka jest
+niezależnie kodowana wspólnym ekstraktorem ResNet-18, a otrzymany wektor cech jest
+rzutowany warstwą liniową do przestrzeni ukrytej o wymiarze $256$:
+\begin{equation}
+  \mathbf{h}_t = \operatorname{ReLU}\!\big(W_{\text{proj}}\,\operatorname{Backbone}(\mathbf{x}_t)\big),
+  \qquad t = 1, \dots, T .
+\end{equation}
+Sekwencja wektorów cech $\{\mathbf{h}_t\}$ jest następnie przetwarzana przez
+dwuwarstwową sieć LSTM (rozmiar stanu ukrytego $256$, \emph{dropout} $0.2$):
+\begin{equation}
+  (\mathbf{o}_1, \dots, \mathbf{o}_T) = \operatorname{LSTM}(\mathbf{h}_1, \dots, \mathbf{h}_T).
+\end{equation}
+Do warstwy regresyjnej trafia stan z ostatniego kroku czasowego $\mathbf{o}_T$:
+\begin{equation}
+  \mathbf{y} = \operatorname{Head}(\mathbf{o}_T),
+  \qquad \operatorname{Head}:\; 256 \to 128 \to n_{\text{out}} .
+\end{equation}
+Model ten jest przeznaczony do sytuacji, w których parametry zniekształceń są stałe w
+obrębie sekwencji, a zmienia się jedynie perspektywa obserwacji wzorca.
+
+\subsection{CNN + Transformer}
+Klasa \texttt{CNNTransformerCalibrationNet} zastępuje rekurencyjny agregator mechanizmem
+samouwagi (\emph{self-attention}). Cechy każdej klatki są rzutowane liniowo do przestrzeni
+osadzeń o wymiarze $d_{\text{model}} = 256$, a następnie wzbogacane o uczone kodowanie
+pozycyjne $\mathbf{p}_t$:
+\begin{equation}
+  \mathbf{z}_t = W_{\text{proj}}\,\operatorname{Backbone}(\mathbf{x}_t) + \mathbf{p}_t .
+\end{equation}
+Sekwencja $\{\mathbf{z}_t\}$ jest przetwarzana przez enkoder transformera złożony z
+$3$ warstw, każda z $8$ głowicami uwagi i warstwą \emph{feed-forward} o wymiarze
+$4 d_{\text{model}} = 1024$. Reprezentacja sekwencji powstaje przez uśrednienie po
+wymiarze czasowym (\emph{mean pooling}):
+\begin{equation}
+  \bar{\mathbf{z}} = \frac{1}{T} \sum_{t=1}^{T} \operatorname{Encoder}(\mathbf{z})_t,
+  \qquad \mathbf{y} = \operatorname{Head}(\bar{\mathbf{z}}).
+\end{equation}
+Mechanizm uwagi pozwala modelować bezpośrednie relacje pomiędzy dowolnymi klatkami, co
+czyni ten wariant odpowiednim dla dłuższych sekwencji.
+
+\section{Funkcja straty}
+Wszystkie modele trenowane są z użyciem funkcji straty \emph{log-cosh}
+(klasa \texttt{LogCoshLoss}), stanowiącej gładkie przybliżenie straty $L_1$:
+\begin{equation}
+  \mathcal{L}(\mathbf{y}, \hat{\mathbf{y}}) =
+  \frac{1}{n} \sum_{i=1}^{n} \log\!\big(\cosh(y_i - \hat{y}_i)\big).
+\end{equation}
+Dla małych błędów zachowuje się jak strata kwadratowa $L_2$, a dla dużych --- jak
+$L_1$, co zapewnia odporność na wartości odstające. Rozwiązanie to zaczerpnięto z pracy
+DeepCalib (Bogdan i in., 2018).
+
+\section{Zestawienie architektur}
+Tabela~\ref{tab:modele} podsumowuje kluczowe własności wszystkich pięciu wariantów.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Zestawienie architektur modeli z katalogu \texttt{models/}.}
+  \label{tab:modele}
+  \small
+  \begin{tabular}{@{}llccl@{}}
+    \toprule
+    \textbf{Model} & \textbf{Backbone} & \textbf{Wymiar cech} & \textbf{Wejście} & \textbf{Agregacja} \\
+    \midrule
+    ResNet18CalibrationNet      & ResNet-18       & 512  & $(B,3,H,W)$   & --- \\
+    ResNet50CalibrationNet      & ResNet-50       & 2048 & $(B,3,H,W)$   & --- \\
+    EfficientNetB0CalibrationNet& EfficientNet-B0 & 1280 & $(B,3,H,W)$   & --- \\
+    CNNLSTMCalibrationNet       & ResNet-18       & 512  & $(B,T,3,H,W)$ & LSTM (2 warstwy) \\
+    CNNTransformerCalibrationNet& ResNet-18       & 512  & $(B,T,3,H,W)$ & Transformer (3 warstwy) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Sposób użycia}
+Modele importuje się bezpośrednio z pakietu, a wyboru wariantu dokonuje się na podstawie
+pola \texttt{model\_name} w konfiguracji treningu:
+
+\begin{lstlisting}
+from src.networks_tool.models import (
+    ResNet18CalibrationNet,
+    ResNet50CalibrationNet,
+    EfficientNetB0CalibrationNet,
+    CNNLSTMCalibrationNet,
+    CNNTransformerCalibrationNet,
+)
+\end{lstlisting}
+
+Modele jednoklatkowe przyjmują tensor o kształcie $(B, 3, H, W)$, natomiast modele
+sekwencyjne --- tensor $(B, T, 3, H, W)$. Domyślny rozmiar obrazu wejściowego wynosi
+$224 \times 224$ pikseli, zgodnie z wymaganiami wstępnie wytrenowanych ekstraktorów cech.
+
+\end{document}

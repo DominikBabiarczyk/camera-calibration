@@ -22,6 +22,7 @@ from .model import CalibrationNet, LogCoshLoss
 from .models import (
     CNNLSTMCalibrationNet,
     CNNTransformerCalibrationNet,
+    CornerGRUCalibrationNet,
     EfficientNetB0CalibrationNet,
     ResNet18CalibrationNet,
     ResNet50CalibrationNet,
@@ -51,6 +52,7 @@ def train(config: TrainingConfig) -> None:
         "efficientnet_b0_single": EfficientNetB0CalibrationNet,
         "cnn_lstm_sequence": CNNLSTMCalibrationNet,
         "cnn_transformer_sequence": CNNTransformerCalibrationNet,
+        "corner_gru_sequence": CornerGRUCalibrationNet,
     }
     model_cls = model_map.get(config.model_name, CalibrationNet)
     model = model_cls(num_outputs=config.num_outputs).to(device)

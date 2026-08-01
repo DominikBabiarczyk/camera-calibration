@@ -1,0 +1,187 @@
+% ============================================================================
+%  Rozdział: Badania porównawcze i wnioski
+%  Plik przeznaczony do samodzielnej kompilacji lub włączenia przez \input{}
+%  do głównego dokumentu pracy magisterskiej.
+% ============================================================================
+\documentclass[12pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[polish]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\begin{document}
+
+\chapter{Badania porównawcze metod kalibracji i wnioski}
+\label{chap:badania-wnioski}
+
+\section{Wprowadzenie}
+Celem przeprowadzonych badań było ilościowe porównanie trzech podejść do wyznaczania
+parametrów kamery: dwóch wytrenowanych sieci neuronowych oraz klasycznego, referencyjnego
+algorytmu kalibracji opartego na detekcji szachownicy. Badanie miało odpowiedzieć na pytanie,
+w jakim stopniu regresja parametrów kamery za pomocą sieci głębokich jest w stanie zastąpić
+lub uzupełnić metodę klasyczną, a także wskazać mocne i słabe strony każdego z podejść.
+
+Porównaniu poddano następujące metody:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{ResNet-50} (\texttt{calibration\_net\_best\_resnet}) --- model jednoklatkowy
+        przewidujący wektor $[f/W, k_1, k_2]$;
+  \item \textbf{CNN+LSTM} (\texttt{calibration\_net\_best\_lstm}) --- model sekwencyjny (okno
+        $5$ klatek) przewidujący pełny wektor dziewięciu parametrów;
+  \item \textbf{metoda klasyczna} --- funkcja \texttt{cv2.calibrateCamera} realizująca model
+        Browna--Conrady'ego, tożsama z algorytmem użytym w skrypcie \texttt{projectScript.ipynb}.
+\end{itemize}
+
+Oba modele sieciowe pochodziły z punktów kontrolnych zapisanych po pierwszej epoce treningu
+(strata walidacyjna odpowiednio $0.0082$ dla CNN+LSTM i $0.0133$ dla ResNet-50), co należy
+uwzględnić przy interpretacji wyników.
+
+\section{Metodyka}
+
+\subsection{Zbiory testowe}
+Eksperyment przeprowadzono na dwóch niezależnych zbiorach danych o rozdzielczości
+$640 \times 480$ pikseli:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Zbiór syntetyczny z prawdą podstawową} (\texttt{data/aug\_camera\_test\_seq/}) ---
+        $20$ sekwencji po $50$ klatek, z których każda posiada plik \texttt{camera\_params.yaml}
+        zawierający rzeczywiste wartości parametrów ($f_x, f_y, c_x, c_y, k_1, k_2, p_1, p_2, k_3$).
+        Wewnętrzne narożniki szachownicy: $8 \times 5$.
+  \item \textbf{Realne pary stereo} (\texttt{src/calibration\_cv/pairs/}) --- zdjęcia
+        rzeczywistej szachownicy podzielone na kamerę \emph{lewą} i \emph{prawą} (po $49$ zdjęć,
+        narożniki $9 \times 6$). Zbiór nie posiada prawdy podstawowej, dlatego referencją jest
+        wynik kalibracji klasycznej.
+\end{enumerate}
+
+\subsection{Ujednolicenie parametrów}
+Ze względu na odmienne konwencje normalizacji zastosowane podczas treningu, predykcje sieci
+przeliczano do wspólnej jednostki (piksele obrazu oryginalnego). Dla modelu ResNet-50
+ogniskową odtwarzano jako $f = f_{\text{norm}} \cdot W$, gdzie $W = 640$; dla modelu CNN+LSTM
+parametry denormalizowano przez rozmiar wejścia sieci ($224$ px). Współczynniki dystorsji
+porównywano bezpośrednio.
+
+\subsection{Miary jakości}
+Do oceny zastosowano trzy miary błędu względem prawdy podstawowej: średni błąd bezwzględny
+(MAE), medianę błędu bezwzględnego (MedAE) oraz medianę błędu względnego ogniskowej.
+Dla parametru $\theta$ i $N$ sekwencji:
+\begin{equation}
+  \text{MAE} = \frac{1}{N}\sum_{i=1}^{N} \big|\hat{\theta}_i - \theta_i\big|,
+  \qquad
+  \text{MedAE} = \operatorname{median}_i \big|\hat{\theta}_i - \theta_i\big|.
+\end{equation}
+Medianę wprowadzono jako miarę \emph{odporną na wartości odstające}, ponieważ klasyczna
+kalibracja bywa niestabilna dla obrazów silnie zniekształconych.
+
+\section{Wyniki --- zbiór z prawdą podstawową}
+Tabela~\ref{tab:wyniki-gt} przedstawia zbiorcze błędy estymacji ogniskowej $f_x$ dla
+$20$ sekwencji.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Błąd estymacji ogniskowej $f_x$ na zbiorze syntetycznym z prawdą podstawową.}
+  \label{tab:wyniki-gt}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    \textbf{Metoda} & \textbf{MedAE $f_x$ [px]} & \textbf{mediana bł. wzgl.} & \textbf{MAE $f_x$ [px]} \\
+    \midrule
+    klasyczna  & \textbf{17.6} & \textbf{2.7\,\%}  & 321$^\ast$ \\
+    ResNet-50  & 66.8          & 8.7\,\%           & 76.2 \\
+    CNN+LSTM   & 496.9         & 70.8\,\%          & 484.7 \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{2pt}
+  {\footnotesize $^\ast$ Wysoka wartość MAE wynika z dwóch sekwencji odstających
+   (\texttt{sequence\_015}, \texttt{sequence\_016}).}
+\end{table}
+
+Najważniejsze obserwacje:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Metoda klasyczna} osiąga najniższy \emph{medianowy} błąd ogniskowej
+        (ok. $2.7\,\%$), co potwierdza jej wysoką dokładność przy pewnej detekcji narożników.
+        Znaczna różnica pomiędzy MAE ($321$ px) a MedAE ($17.6$ px) ujawnia jej wrażliwość:
+        dla dwóch silnie zniekształconych sekwencji detekcja zawiodła, a estymowana ogniskowa
+        osiągnęła wartości $f_x \approx 3300$--$3700$ px (błąd RMS $> 1.9$).
+  \item \textbf{ResNet-50} jest najlepszym estymatorem ogniskowej \emph{bez wzorca
+        kalibracyjnego} --- z pojedynczego obrazu uzyskuje medianę błędu ok. $8.7\,\%$, mimo
+        że był trenowany wyłącznie na dystorsji radialnej, bez perspektywy i składowej
+        tangencjalnej.
+  \item \textbf{CNN+LSTM} zwraca niemal stałą wartość ogniskowej ($\approx 205$ px, błąd
+        $\approx 70\,\%$). Punkt kontrolny zapisano po pierwszej epoce, a model nie nauczył się
+        jeszcze regresji i przewiduje wartość zbliżoną do średniej zbioru treningowego.
+\end{itemize}
+
+\subsection{Współczynniki dystorsji}
+W przypadku współczynników $k_1, k_2$ zaobserwowano istotną prawidłowość: klasyczna
+kalibracja odzyskuje dystorsję z \emph{odwrotnym znakiem} względem prawdy podstawowej.
+Wynika to z faktu, że generator danych nakłada zniekształcenie jako odwzorowanie
+\emph{wprost}, podczas gdy \texttt{cv2.calibrateCamera} modeluje przekształcenie odwrotne.
+Dla trudnych sekwencji magnituda $k_2$ bywała skrajnie zawyżona (MedAE $k_2 \approx 7.1$).
+Obie sieci przewidywały natomiast $k_1, k_2$ bliskie zeru, co przy niewielkich wartościach
+prawdziwych daje niski błąd liczbowy, lecz nie świadczy o poprawnym modelowaniu dystorsji.
+
+\section{Wyniki --- realne pary stereo}
+Na zbiorze rzeczywistych zdjęć (brak prawdy podstawowej) klasyczną kalibrację przyjęto za
+referencję. Wyniki dla kamery lewej i prawej zestawiono w tabeli~\ref{tab:wyniki-pairs}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Estymacja parametrów dla realnych par stereo (referencja: metoda klasyczna).}
+  \label{tab:wyniki-pairs}
+  \begin{tabular}{@{}llcccc@{}}
+    \toprule
+    \textbf{Kamera} & \textbf{Metoda} & \textbf{$f_x$ [px]} & \textbf{$f_y$ [px]} & \textbf{$k_1$} & \textbf{$k_2$} \\
+    \midrule
+    \multirow{3}{*}{lewa}
+      & klasyczna & 330.2 & 330.7 & $-0.325$ & $0.112$ \\
+      & ResNet-50 & 361.3 & 361.3 & $-0.051$ & $-0.058$ \\
+      & CNN+LSTM  & 223.8 & 297.5 & $-0.325$ & $-0.026$ \\
+    \midrule
+    \multirow{3}{*}{prawa}
+      & klasyczna & 325.5 & 326.8 & $-0.331$ & $0.126$ \\
+      & ResNet-50 & 375.3 & 375.3 & $-0.036$ & $-0.033$ \\
+      & CNN+LSTM  & 223.7 & 297.7 & $-0.324$ & $-0.026$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Wnioski z tej części:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{ResNet-50} najlepiej odwzorowuje ogniskową względem referencji
+        ($361$/$375$ px wobec $330$/$325$ px).
+  \item \textbf{CNN+LSTM}, mimo słabej estymacji ogniskowej, trafnie odtwarza współczynnik
+        $k_1$ ($-0.325$ wobec referencyjnego $\approx -0.33$).
+  \item Wyniki dla obu kamer są wzajemnie spójne dla każdej z metod, co potwierdza
+        jednorodność zestawu stereo.
+\end{itemize}
+Wymaga podkreślenia, że metoda klasyczna dawała stosunkowo wysoki błąd RMS ($\approx 2.75$)
+na zdjęciach rzeczywistych, co wskazuje na obecność szumu pomiarowego niewystępującego w
+danych syntetycznych.
+
+\section{Dyskusja i wnioski końcowe}
+Przeprowadzone badania prowadzą do następujących wniosków:
+\begin{enumerate}[leftmargin=*]
+  \item Do dokładnej kalibracji przy dostępnym wzorcu szachownicy \textbf{najlepsza pozostaje
+        metoda klasyczna} --- pod warunkiem pewnej detekcji narożników osiąga medianowy błąd
+        ogniskowej rzędu $2.7\,\%$. Jej słabością jest jednak brak odporności: pojedyncze
+        nieudane detekcje drastycznie zaniżają jakość, co uzasadnia stosowanie miar medianowych.
+  \item \textbf{ResNet-50} jest obiecującym estymatorem ogniskowej z pojedynczego obrazu, bez
+        konieczności użycia wzorca kalibracyjnego (błąd $\approx 8.7\,\%$). Czyni to sieć
+        użyteczną w zastosowaniach, w których szachownica jest niedostępna.
+  \item \textbf{CNN+LSTM} w obecnej postaci (trening ograniczony do jednej epoki) nie jest
+        praktycznie użyteczny i wymaga znacznie dłuższego procesu uczenia.
+  \item \textbf{Żadna z sieci nie odwzorowuje poprawnie współczynników dystorsji.} Stanowi to
+        główny kierunek dalszych prac: dłuższy trening, szerszy i bardziej realistyczny zakres
+        parametrów oraz ujednolicenie konwencji znaku dystorsji pomiędzy generatorem danych a
+        modelem kalibracji.
+\end{enumerate}
+Podsumowując, metody uczenia głębokiego oferują komplementarne możliwości względem klasycznej
+kalibracji: umożliwiają zgrubną estymację ogniskowej bez wzorca, lecz nie osiągają jeszcze jej
+dokładności ani wiarygodności w zakresie zniekształceń optycznych.
+
+\end{document}

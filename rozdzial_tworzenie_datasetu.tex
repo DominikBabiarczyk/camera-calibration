@@ -1,0 +1,537 @@
+% ============================================================================
+%  Rozdział: Proces tworzenia syntetycznego datasetu kalibracyjnego
+%  Plik przeznaczony do samodzielnej kompilacji lub włączenia przez \input{}
+%  do głównego dokumentu pracy magisterskiej.
+% ============================================================================
+\documentclass[12pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[polish]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\begin{document}
+
+\chapter{Proces tworzenia syntetycznego datasetu kalibracyjnego}
+\label{chap:tworzenie-datasetu}
+
+\section{Cel generowania danych syntetycznych}
+Proces tworzenia datasetu polega na wygenerowaniu zbioru obrazów przedstawiających płaską
+szachownicę obserwowaną przez syntetyczną kamerę o znanych parametrach wewnętrznych i znanych
+współczynnikach dystorsji. Tak przygotowany zbiór danych ma zastąpić lub uzupełnić klasyczną
+procedurę ręcznego zbierania obrazów kalibracyjnych. Najważniejsza różnica polega na tym, że
+w zbiorze syntetycznym wartości parametrów kamery są znane dokładnie, ponieważ są one losowane
+przed wygenerowaniem obrazu. Dzięki temu każdy obraz lub każda sekwencja obrazów może zostać
+opisana etykietą regresyjną, którą model neuronowy ma później odtworzyć.
+
+W tym rozdziale opisano proces generowania danych od strony matematycznej. Nie jest istotna
+struktura programu ani sposób organizacji plików, lecz ciąg przekształceń geometrycznych,
+który prowadzi od idealnego wzorca szachownicy do końcowego obrazu widzianego przez kamerę.
+Cały proces można potraktować jako złożenie czterech głównych operacji:
+\begin{enumerate}
+    \item zdefiniowania płaskiego wzorca w układzie współrzędnych świata,
+    \item wylosowania parametrów wewnętrznych kamery oraz parametrów dystorsji,
+    \item wylosowania pozy i odległości szachownicy względem kamery,
+    \item rzutowania punktów wzorca na płaszczyznę obrazu oraz zdeformowania obrazu zgodnie
+          z modelem dystorsji optycznej.
+\end{enumerate}
+
+W przypadku datasetu sekwencyjnego jeden zestaw parametrów kamery jest stały dla całej
+sekwencji, natomiast dla kolejnych klatek zmienia się położenie płaszczyzny szachownicy.
+Taka konstrukcja dobrze odpowiada rzeczywistej procedurze kalibracji: kamera pozostaje tą
+samą kamerą, a obserwowany wzorzec jest pokazywany pod różnymi kątami i w różnych miejscach
+kadru. Model uczący się na takim zbiorze nie powinien zapamiętywać jednej konkretnej
+perspektywy, lecz powinien rozpoznawać te cechy obrazu, które wynikają ze stałych parametrów
+optycznych.
+
+\section{Reprezentacja idealnej szachownicy}
+Punktem wyjścia jest idealny obraz wzorca kalibracyjnego, czyli szachownicy złożonej
+z naprzemiennych czarnych i białych pól. Matematycznie wzorzec ten jest traktowany jako
+płaska figura leżąca na płaszczyźnie $Z=0$ w pewnym lokalnym układzie współrzędnych. Jeżeli
+szachownica ma $n_x$ punktów charakterystycznych w poziomie oraz $n_y$ punktów charakterystycznych
+w pionie, a rozmiar pojedynczego pola wynosi $s$, to punkty siatki można zapisać jako
+\begin{equation}
+    \mathbf{P}_{ij} =
+    \begin{bmatrix}
+        X_i \\
+        Y_j \\
+        0
+    \end{bmatrix},
+    \qquad i = 0,\dots,n_x-1, \quad j = 0,\dots,n_y-1.
+\end{equation}
+Współrzędne $X_i$ oraz $Y_j$ są oddalone od siebie o stały krok $s$:
+\begin{equation}
+    X_i = \left(i - \frac{n_x-1}{2}\right)s,
+    \qquad
+    Y_j = \left(j - \frac{n_y-1}{2}\right)s.
+\end{equation}
+Odjęcie środka siatki nie zmienia geometrii samego wzorca, ale sprawia, że środek szachownicy
+leży blisko początku układu współrzędnych. Jest to wygodne, ponieważ obroty wokół osi układu
+lokalnego odpowiadają wtedy intuicyjnemu obracaniu całej planszy wokół jej środka, a nie wokół
+jednego z narożników.
+
+Rozmiar pola $s$ nie musi być wyrażony w centymetrach ani milimetrach. W datasetcie syntetycznym
+jest on dobierany względem rozmiaru obrazu, np. jako ułamek większego wymiaru kadru. Jeżeli
+szerokość obrazu wynosi $W$, a wysokość $H$, to naturalną skalą jest
+\begin{equation}
+    M = \max(W,H),
+\end{equation}
+a rozmiar pola może być opisany jako
+\begin{equation}
+    s = \alpha_s M,
+    \qquad \alpha_s \in [0.08, 0.16].
+\end{equation}
+Taki zapis powoduje, że wielkość wzorca automatycznie dopasowuje się do rozdzielczości obrazu.
+Nie chodzi tutaj o odtworzenie fizycznego rozmiaru tablicy, lecz o wygenerowanie różnych skal
+obserwacji, które zmuszają model do uczenia się zjawisk geometrycznych, a nie jednej stałej
+wielkości obiektu.
+
+\section{Losowanie parametrów wewnętrznych kamery}
+Syntetyczna kamera jest opisana standardowym modelem kamery otworkowej. Jej parametry
+wewnętrzne tworzą macierz
+\begin{equation}
+    K =
+    \begin{bmatrix}
+        f_x & 0   & c_x \\
+        0   & f_y & c_y \\
+        0   & 0   & 1
+    \end{bmatrix},
+\end{equation}
+gdzie $f_x$ i $f_y$ są ogniskowymi wyrażonymi w pikselach, a $(c_x,c_y)$ jest punktem
+głównym obrazu. Wartości te są losowane z zadanych przedziałów, aby dataset zawierał wiele
+różnych kamer, a nie tylko jedną konfigurację optyczną.
+
+Ogniskowe są skalowane przez większy wymiar obrazu:
+\begin{equation}
+    f_x = \alpha_x M,
+    \qquad
+    f_y = \alpha_y M,
+    \qquad
+    \alpha_x,\alpha_y \in [0.8,1.4].
+\end{equation}
+Zakres ten oznacza, że kamera może mieć zarówno szersze, jak i węższe pole widzenia.
+Mniejsza ogniskowa powoduje silniejszą perspektywę i większą podatność na widoczne
+zniekształcenia geometryczne przy krawędziach kadru. Większa ogniskowa daje obraz bardziej
+zbliżony do projekcji równoległej, w którym zmiany skali wynikające z głębi są mniej
+gwałtowne.
+
+Punkt główny jest losowany w pobliżu środka obrazu:
+\begin{equation}
+    c_x = \beta_x W,
+    \qquad
+    c_y = \beta_y H,
+    \qquad
+    \beta_x,\beta_y \in [0.45,0.55].
+\end{equation}
+Dopuszczenie przesunięcia punktu głównego jest ważne, ponieważ w rzeczywistych kamerach oś
+optyczna nie musi przecinać matrycy dokładnie w geometrycznym środku. Nawet niewielka zmiana
+$(c_x,c_y)$ wpływa na to, względem którego punktu liczona jest odległość radialna, a więc
+bezpośrednio wpływa na przestrzenny rozkład dystorsji.
+
+\section{Model dystorsji radialnej i tangencjalnej}
+Poza idealną projekcją perspektywiczną obraz jest deformowany przez dystorsję optyczną.
+W procesie generowania wykorzystany jest model Brown--Conrady, powszechnie stosowany
+w kalibracji kamer i zgodny z konwencją używaną przez OpenCV. Model ten opisuje punkt
+w znormalizowanych współrzędnych kamery jako
+\begin{equation}
+    x = \frac{u-c_x}{f_x},
+    \qquad
+    y = \frac{v-c_y}{f_y},
+\end{equation}
+gdzie $(u,v)$ oznacza współrzędne pikselowe punktu w obrazie, natomiast $(x,y)$ jest jego
+odpowiednikiem w układzie znormalizowanym. Odległość punktu od osi optycznej wyraża się przez
+\begin{equation}
+    r^2 = x^2 + y^2.
+\end{equation}
+
+Część radialna dystorsji zależy wyłącznie od odległości od punktu głównego. Jej współczynnik
+skali ma postać
+\begin{equation}
+    R(r) = 1 + k_1 r^2 + k_2 r^4 + k_3 r^6.
+\end{equation}
+Jeżeli dominujący współczynnik radialny powoduje zmniejszanie współrzędnych dla dużych $r$,
+obraz przyjmuje charakter beczkowy: linie proste wyginają się na zewnątrz, szczególnie przy
+brzegach kadru. Jeżeli efekt działa przeciwnie, powstaje dystorsja poduszkowa, w której linie
+proste są wciągane w stronę środka. Z tego powodu losowanie wartości dodatnich i ujemnych jest
+istotne: dataset obejmuje oba typy deformacji, a model nie uczy się tylko jednego znaku
+zniekształcenia.
+
+Oprócz dystorsji radialnej uwzględniona jest dystorsja tangencjalna. Wynika ona z nieidealnego
+ustawienia soczewki względem płaszczyzny sensora i powoduje asymetryczne przesunięcia punktów.
+Pełne równania zniekształcenia mają postać
+\begin{align}
+    x_d &= x\,R(r) + 2p_1xy + p_2(r^2 + 2x^2), \\
+    y_d &= y\,R(r) + p_1(r^2 + 2y^2) + 2p_2xy.
+\end{align}
+Wektor współczynników dystorsji można więc zapisać jako
+\begin{equation}
+    \mathbf{d} = [k_1,k_2,p_1,p_2,k_3]^T.
+\end{equation}
+W syntetycznym datasetcie współczynniki są losowane z przedziałów
+\begin{align}
+    k_1 &\in [-0.7,0.7], &
+    k_2 &\in [-0.4,0.4], &
+    k_3 &\in [-0.2,0.2], \\
+    p_1 &\in [-0.2,0.2], &
+    p_2 &\in [-0.2,0.2].
+\end{align}
+Tak szerokie zakresy sprawiają, że część przykładów może zawierać bardzo wyraźne deformacje.
+Jest to celowe z punktu widzenia uczenia nadzorowanego: silne przypadki dostarczają modelowi
+wyraźnego sygnału, jak zmiana parametrów przekłada się na geometrię obrazu. Jednocześnie losowanie
+ciągłe, a nie wybór kilku dyskretnych wartości, zmniejsza ryzyko, że sieć potraktuje problem
+jak klasyfikację do kilku gotowych wariantów.
+
+Po obliczeniu współrzędnych zniekształconych $(x_d,y_d)$ następuje powrót do pikselowego układu
+obrazu:
+\begin{equation}
+    u_d = f_x x_d + c_x,
+    \qquad
+    v_d = f_y y_d + c_y.
+\end{equation}
+Końcowy obraz jest więc nie tylko obrazem płaskiej szachownicy po przekształceniu
+perspektywicznym, lecz obrazem po przejściu przez nieliniowy model optyczny.
+
+\section{Poza szachownicy względem kamery}
+Każda klatka wymaga określenia położenia szachownicy w układzie kamery. Poza wzorca jest
+opisana przez macierz obrotu $R$ oraz wektor translacji $\mathbf{t}$. Punkt wzorca
+$\mathbf{P}$ w układzie lokalnym jest przekształcany do układu kamery zgodnie z równaniem
+\begin{equation}
+    \mathbf{P}_c = R\mathbf{P} + \mathbf{t}.
+\end{equation}
+Macierz $R$ powstaje ze złożenia trzech obrotów: pochylenia, odchylenia oraz obrotu w płaszczyźnie
+obrazu. Jeżeli kąty oznaczymy jako $\theta$ dla pitch, $\psi$ dla yaw oraz $\phi$ dla roll,
+to macierze elementarne można zapisać jako
+\begin{equation}
+    R_x(\theta) =
+    \begin{bmatrix}
+        1 & 0 & 0 \\
+        0 & \cos\theta & -\sin\theta \\
+        0 & \sin\theta & \cos\theta
+    \end{bmatrix},
+\end{equation}
+\begin{equation}
+    R_y(\psi) =
+    \begin{bmatrix}
+        \cos\psi & 0 & \sin\psi \\
+        0 & 1 & 0 \\
+        -\sin\psi & 0 & \cos\psi
+    \end{bmatrix},
+\end{equation}
+\begin{equation}
+    R_z(\phi) =
+    \begin{bmatrix}
+        \cos\phi & -\sin\phi & 0 \\
+        \sin\phi & \cos\phi & 0 \\
+        0 & 0 & 1
+    \end{bmatrix}.
+\end{equation}
+Złożony obrót ma postać
+\begin{equation}
+    R = R_z(\phi)R_y(\psi)R_x(\theta).
+\end{equation}
+
+W datasetcie kąty są losowane w ograniczonych zakresach:
+\begin{equation}
+    \theta \in [-20^\circ,20^\circ],
+    \qquad
+    \psi \in [-20^\circ,20^\circ],
+    \qquad
+    \phi \in [-10^\circ,10^\circ].
+\end{equation}
+Takie przedziały pozwalają uzyskać widoczną zmianę perspektywy, ale nie prowadzą zwykle
+do skrajnych przypadków, w których tablica jest niemal równoległa do kierunku patrzenia kamery
+i traci czytelność. Z punktu widzenia kalibracji najcenniejsze są właśnie umiarkowanie różne
+pozy: dostarczają informacji o geometrii, a jednocześnie zachowują wystarczającą ilość
+widocznych narożników oraz struktur liniowych.
+
+Translacja jest dana przez
+\begin{equation}
+    \mathbf{t} =
+    \begin{bmatrix}
+        t_x \\
+        t_y \\
+        t_z
+    \end{bmatrix},
+\end{equation}
+gdzie składowe boczne są losowane względem szerokości i wysokości obrazu,
+\begin{equation}
+    t_x = \gamma_x W,
+    \qquad
+    t_y = \gamma_y H,
+    \qquad
+    \gamma_x,\gamma_y \in [-0.2,0.2],
+\end{equation}
+a odległość od kamery względem większego wymiaru kadru:
+\begin{equation}
+    t_z = \gamma_z M,
+    \qquad
+    \gamma_z \in [0.9,1.8].
+\end{equation}
+Parametr $t_z$ kontroluje skalę widocznej szachownicy. Mała odległość sprawia, że wzorzec
+zajmuje większą część kadru, a perspektywa jest bardziej wyraźna. Większa odległość zmniejsza
+wzorzec i osłabia różnice skali między bliższą i dalszą częścią płaszczyzny.
+
+\section{Projekcja perspektywiczna}
+Po przekształceniu punktu szachownicy do układu kamery otrzymujemy
+\begin{equation}
+    \mathbf{P}_c =
+    \begin{bmatrix}
+        X_c \\
+        Y_c \\
+        Z_c
+    \end{bmatrix}.
+\end{equation}
+Idealna projekcja perspektywiczna, jeszcze bez dystorsji, sprowadza punkt trójwymiarowy
+do znormalizowanych współrzędnych obrazu:
+\begin{equation}
+    x = \frac{X_c}{Z_c},
+    \qquad
+    y = \frac{Y_c}{Z_c}.
+\end{equation}
+Następnie macierz $K$ przekształca je do współrzędnych pikselowych:
+\begin{equation}
+    \begin{bmatrix}
+        u \\
+        v \\
+        1
+    \end{bmatrix}
+    \sim
+    K
+    \begin{bmatrix}
+        x \\
+        y \\
+        1
+    \end{bmatrix}.
+\end{equation}
+W zapisie bezpośrednim daje to równania
+\begin{equation}
+    u = f_x\frac{X_c}{Z_c} + c_x,
+    \qquad
+    v = f_y\frac{Y_c}{Z_c} + c_y.
+\end{equation}
+
+Ponieważ szachownica jest płaska, całe przekształcenie pomiędzy jej lokalną płaszczyzną
+a płaszczyzną obrazu można opisać homografią. Dla punktu płaszczyzny zapisanego jako
+$(X,Y,1)^T$ zachodzi
+\begin{equation}
+    \lambda
+    \begin{bmatrix}
+        u \\
+        v \\
+        1
+    \end{bmatrix}
+    =
+    H
+    \begin{bmatrix}
+        X \\
+        Y \\
+        1
+    \end{bmatrix},
+\end{equation}
+gdzie $\lambda$ jest niezerowym współczynnikiem skali, a homografia ma postać
+\begin{equation}
+    H = K\,[\mathbf{r}_1\;\mathbf{r}_2\;\mathbf{t}],
+\end{equation}
+przy czym $\mathbf{r}_1$ oraz $\mathbf{r}_2$ są dwiema pierwszymi kolumnami macierzy obrotu
+$R$. Trzecia kolumna $R$ nie pojawia się wprost, ponieważ wszystkie punkty wzorca mają
+$Z=0$. Jest to klasyczny wynik geometrii projekcyjnej: obraz dowolnej płaszczyzny w kamerze
+perspektywicznej jest związany z płaszczyzną źródłową homografią.
+
+Homografia odpowiada za to, że równoległe linie szachownicy w obrazie źródłowym mogą zbiegać
+się w punkcie zbiegu, a pola położone dalej od kamery mogą być widocznie mniejsze niż pola
+bliższe. Bez tego etapu dataset zawierałby jedynie płaskie, frontalne obrazy wzorca, które
+nie byłyby wystarczająco informacyjne dla kalibracji.
+
+\section{Złożenie homografii i dystorsji}
+Końcowy obraz powstaje jako złożenie projekcji płaszczyzny oraz nieliniowego odwzorowania
+dystorsyjnego. Można to zapisać symbolicznie jako
+\begin{equation}
+    I_{\text{out}} = \mathcal{D}_{K,\mathbf{d}}\left(\mathcal{H}_{K,R,\mathbf{t}}(I_{\text{board}})\right),
+\end{equation}
+gdzie $I_{\text{board}}$ oznacza idealny obraz szachownicy, $\mathcal{H}_{K,R,\mathbf{t}}$
+jest przekształceniem perspektywicznym wynikającym z macierzy kamery i pozy tablicy,
+a $\mathcal{D}_{K,\mathbf{d}}$ jest deformacją optyczną zadaną przez współczynniki
+$\mathbf{d}$.
+
+Ważne jest rozróżnienie tych dwóch zjawisk. Homografia opisuje zmianę wyglądu płaskiego
+obiektu wynikającą z jego ustawienia względem kamery. Gdyby kamera była idealna, proste linie
+szachownicy pozostałyby prostymi liniami po projekcji perspektywicznej. Dystorsja natomiast
+powoduje, że nawet obraz linii prostych może stać się krzywoliniowy. Dlatego dla uczenia
+parametrów kamery najważniejsze są subtelne różnice pomiędzy deformacją perspektywiczną
+a deformacją optyczną. Perspektywa zależy od pozy tablicy w danej klatce, natomiast dystorsja
+jest własnością kamery i pozostaje taka sama dla wszystkich obserwacji w sekwencji.
+
+Z praktycznego punktu widzenia obraz wynikowy musi zostać obliczony na dyskretnej siatce pikseli.
+Wartość piksela po przekształceniu nie zawsze odpowiada dokładnie jednemu pikselowi obrazu
+źródłowego, dlatego stosowana jest interpolacja. Matematycznie można traktować obraz jako
+funkcję
+\begin{equation}
+    I: \Omega \subset \mathbb{R}^2 \rightarrow \mathbb{R}^3,
+\end{equation}
+która dla dowolnych współrzędnych ciągłych zwraca przybliżoną wartość koloru. Interpolacja
+liniowa jest kompromisem: zachowuje płynność przekształcenia i nie wprowadza tak ostrych
+artefaktów jak najbliższy sąsiad, a jednocześnie jest prostsza od interpolacji wyższych rzędów.
+
+\section{Kontrola widoczności wzorca}
+Losowanie parametrów mogłoby prowadzić do obrazów, w których szachownica prawie całkowicie
+wychodzi poza kadr albo jest widoczna jedynie jako mały fragment. Takie przykłady są zwykle
+mało przydatne, ponieważ nie zawierają wystarczającej informacji geometrycznej. Dlatego proces
+generowania ogranicza przyjmowane transformacje: po wylosowaniu pozy sprawdzane jest, czy
+rzutowane punkty lub istotne narożniki mieszczą się w granicach obrazu.
+
+Warunek widoczności można zapisać jako
+\begin{equation}
+    0 \leq u_i < W,
+    \qquad
+    0 \leq v_i < H
+\end{equation}
+dla wybranych punktów kontrolnych $i$. Jeżeli warunek nie jest spełniony, próbka może zostać
+odrzucona i zastąpiona nowym losowaniem. Taka procedura nie zmienia matematycznego modelu
+kamery, ale zmienia rozkład danych: usuwa przypadki skrajnie nieczytelne i koncentruje zbiór
+na obserwacjach, które rzeczywiście mogłyby posłużyć do kalibracji.
+
+Jednocześnie zbyt agresywne ograniczenie widoczności mogłoby prowadzić do zbyt łatwego datasetu.
+Jeżeli wszystkie szachownice byłyby idealnie wyśrodkowane i niemal frontalne, model mógłby
+osiągać dobre wyniki bez rozumienia pełnej geometrii problemu. Dlatego kontrola widoczności
+powinna usuwać przypadki bezużyteczne, ale pozostawiać przesunięcia, obroty i zmiany skali,
+które są potrzebne do nauczenia odporności.
+
+\section{Budowa sekwencji obrazów}
+Wariant sekwencyjny datasetu ma szczególne znaczenie, ponieważ naśladuje rzeczywistą sytuację,
+w której jedna kamera obserwuje tę samą tablicę kalibracyjną w wielu położeniach. Dla pojedynczej
+sekwencji losowany jest stały zestaw parametrów
+\begin{equation}
+    \Theta = (f_x,f_y,c_x,c_y,k_1,k_2,p_1,p_2,k_3,s,n_x,n_y),
+\end{equation}
+natomiast dla każdej klatki $t$ losowana jest osobna poza
+\begin{equation}
+    \Pi_t = (R_t,\mathbf{t}_t).
+\end{equation}
+Klatka sekwencji powstaje więc jako
+\begin{equation}
+    I_t = \mathcal{D}_{K,\mathbf{d}}\left(\mathcal{H}_{K,R_t,\mathbf{t}_t}(I_{\text{board}})\right),
+    \qquad t=1,\dots,T.
+\end{equation}
+Etykieta pozostaje wspólna dla całej sekwencji:
+\begin{equation}
+    \mathbf{y}_{\text{seq}} = [f_x,f_y,c_x,c_y,k_1,k_2,p_1,p_2,k_3]^T.
+\end{equation}
+
+Ta konstrukcja wymusza istotną własność uczenia. Jeżeli model analizuje tylko pojedynczą
+klatkę, musi rozdzielić wpływ dwóch czynników: aktualnego ustawienia szachownicy i stałych
+parametrów kamery. W sekwencji wiele różnych póz ma te same parametry wewnętrzne i tę samą
+dystorsję. Informacja powtarzalna między klatkami jest więc kandydatem na własność kamery,
+a informacja zmienna między klatkami jest związana głównie z położeniem tablicy. Z tego powodu
+sekwencja jest bogatszym sygnałem treningowym niż pojedynczy obraz.
+
+Można to ująć probabilistycznie. Dla jednej sekwencji parametry kamery są losowane raz:
+\begin{equation}
+    \Theta \sim p(\Theta),
+\end{equation}
+a pozy kolejnych klatek są losowane warunkowo niezależnie:
+\begin{equation}
+    \Pi_t \sim p(\Pi),
+    \qquad t=1,\dots,T.
+\end{equation}
+Obrazy są następnie deterministycznym wynikiem funkcji generującej:
+\begin{equation}
+    I_t = G(\Theta,\Pi_t).
+\end{equation}
+Zadanie modelu uczącego można zapisać jako znalezienie funkcji $F$, która dla sekwencji obrazów
+odtwarza parametry kamery:
+\begin{equation}
+    F(I_1,\dots,I_T) \approx [f_x,f_y,c_x,c_y,k_1,k_2,p_1,p_2,k_3]^T.
+\end{equation}
+
+\section{Znaczenie etykiet i normalizacji}
+Wygenerowany obraz sam w sobie nie wystarcza do uczenia nadzorowanego. Każda próbka musi mieć
+przypisaną etykietę, czyli wektor wartości, które model ma przewidywać. W przypadku kalibracji
+etykietą nie jest klasa ani opis tekstowy, lecz wektor ciągłych parametrów geometrycznych.
+Najważniejszy wektor etykiety ma postać
+\begin{equation}
+    \mathbf{y} = [f_x,f_y,c_x,c_y,k_1,k_2,p_1,p_2,k_3]^T.
+\end{equation}
+
+Parametry w tym wektorze mają różne skale. Ogniskowe i punkt główny są mierzone w pikselach
+i mogą mieć wartości rzędu setek, natomiast współczynniki dystorsji są bezwymiarowe i zwykle
+mają wartości znacznie bliższe zeru. Gdyby trenować model bez uwzględnienia tej różnicy, błąd
+ogniskowej mógłby numerycznie dominować nad błędem dystorsji. Z tego powodu naturalnym krokiem
+jest normalizacja parametrów pikselowych przez rozmiar obrazu:
+\begin{equation}
+    \tilde{f}_x = \frac{f_x}{W},
+    \qquad
+    \tilde{f}_y = \frac{f_y}{H},
+    \qquad
+    \tilde{c}_x = \frac{c_x}{W},
+    \qquad
+    \tilde{c}_y = \frac{c_y}{H}.
+\end{equation}
+Można również normalizować ogniskowe przez $M=\max(W,H)$, jeżeli taki sam czynnik skali był
+używany podczas losowania. Najważniejsza zasada jest taka, aby etykiety wejściowe do funkcji
+straty miały porównywalne zakresy i aby odwrotne przeskalowanie było jednoznaczne podczas
+interpretacji wyniku.
+
+\section{Dlaczego dataset syntetyczny jest użyteczny dla kalibracji}
+Największą zaletą syntetycznego datasetu jest pełna kontrola nad parametrami generującymi.
+W rzeczywistym zbiorze danych dokładne wartości $f_x$, $f_y$, $c_x$, $c_y$ i współczynników
+dystorsji trzeba najpierw oszacować tradycyjną metodą kalibracyjną, co samo wprowadza błąd
+pomiarowy. W zbiorze syntetycznym etykieta jest znana, ponieważ to ona była przyczyną
+wygenerowania obrazu. Pozwala to tworzyć bardzo duże zbiory danych bez ręcznej kalibracji
+każdej konfiguracji.
+
+Drugą zaletą jest możliwość świadomego pokrycia przestrzeni parametrów. Można wygenerować
+kamery o różnych ogniskowych, różnych przesunięciach punktu głównego oraz dodatniej i ujemnej
+dystorsji radialnej. W danych rzeczywistych wiele takich przypadków byłoby trudnych do zebrania,
+bo wymagałoby wielu fizycznych kamer lub wielu obiektywów. Tutaj zmiana kamery sprowadza się
+do zmiany wektora parametrów, a więc do kontrolowanego losowania z ustalonego rozkładu.
+
+Trzecią zaletą jest możliwość tworzenia sekwencji, w których znana jest zależność między
+klatkami. W każdej sekwencji zmienna jest perspektywa, ale stałe są parametry optyczne.
+Jest to bardzo ważne dla modeli sekwencyjnych, ponieważ dostają one kilka obserwacji tego
+samego układu optycznego. W takim ustawieniu model może uczyć się rozpoznawać parametry
+kamery jako cechę wspólną, a nie przypadkowy efekt jednej pozy wzorca.
+
+\section{Ograniczenia procesu generowania}
+Mimo wielu zalet dataset syntetyczny nie jest idealnym odpowiednikiem danych rzeczywistych.
+Opisany proces koncentruje się przede wszystkim na geometrii: projekcji perspektywicznej,
+pozie płaszczyzny, ogniskowej, punkcie głównym i dystorsji. Rzeczywiste obrazy zawierają jednak
+również szum sensora, nierównomierne oświetlenie, rozmycie ruchu, winietowanie, kompresję,
+odbicia światła, niedoskonałości wydruku oraz lokalne deformacje fizycznej tablicy.
+Jeżeli tych efektów nie ma w danych syntetycznych, model może osiągać bardzo dobre wyniki
+na wygenerowanych obrazach, ale gorzej przenosić się na obrazy z prawdziwej kamery.
+
+Ograniczeniem jest również przyjęty zakres losowania. Model uczony tylko na kamerach z
+ogniskowymi z przedziału $[0.8M,1.4M]$ może słabiej radzić sobie z kamerą spoza tego zakresu.
+Podobnie, jeżeli pozycje tablicy są ograniczone do umiarkowanych kątów, model nie musi poprawnie
+obsługiwać bardzo ostrych perspektyw. Dlatego zakresy generowania należy traktować jako część
+definicji problemu: określają one, jaką rodzinę kamer i obserwacji ma obejmować wytrenowany
+model.
+
+\section{Podsumowanie procesu}
+Proces tworzenia datasetu można podsumować jako kontrolowane losowanie parametrów kamery
+i pozy wzorca, a następnie wygenerowanie obrazu przez model geometryczny. Dla każdej próbki
+powstaje najpierw idealna płaska szachownica, następnie wybierane są parametry macierzy
+wewnętrznej $K$, współczynniki dystorsji $\mathbf{d}$ oraz poza $(R,\mathbf{t})$.
+Szachownica jest rzutowana na obraz przez homografię wynikającą z modelu kamery otworkowej,
+a potem deformowana przez równania Brown--Conrady'ego.
+
+W wariancie sekwencyjnym ten sam zestaw parametrów kamery obowiązuje dla wielu klatek,
+natomiast każda klatka otrzymuje inną pozę wzorca. Dzięki temu jedna sekwencja przedstawia
+wiele obserwacji tej samej kamery. Etykietą sekwencji jest wektor parametrów
+\begin{equation}
+    [f_x,f_y,c_x,c_y,k_1,k_2,p_1,p_2,k_3]^T,
+\end{equation}
+czyli dokładnie te wartości, które model ma przewidywać. Matematycznie dataset jest więc
+zbiorem par
+\begin{equation}
+    \left((I_1,\dots,I_T),\mathbf{y}_{\text{seq}}\right),
+\end{equation}
+gdzie obrazy są wynikiem znanego procesu projekcji i dystorsji, a etykieta jest parametrem
+tego procesu. Taka konstrukcja sprawia, że zadanie uczenia jest dobrze określone: sieć ma
+odwrócić, w przybliżeniu, syntetyczny proces generowania i z obrazu lub sekwencji obrazów
+odzyskać parametry kamery.
+
+\end{document}

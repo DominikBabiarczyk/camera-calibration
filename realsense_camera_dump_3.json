@@ -1,0 +1,106 @@
+{
+    "timestamp": "2026-07-17 12:38:58.567981",
+    "device": {
+        "camera_info.name": "Intel RealSense D435I",
+        "camera_info.serial_number": "216322072234",
+        "camera_info.firmware_version": "5.17.0.10",
+        "camera_info.product_id": "0B3A",
+        "camera_info.product_line": "D400",
+        "camera_info.usb_type_descriptor": "3.2"
+    },
+    "sensors": {
+        "Stereo Module": {
+            "options": {}
+        },
+        "RGB Camera": {
+            "options": {}
+        },
+        "Motion Module": {
+            "options": {}
+        }
+    },
+    "streams": {
+        "stream.depth": {
+            "intrinsics": {
+                "width": 1280,
+                "height": 720,
+                "fx": 638.9774169921875,
+                "fy": 638.9774169921875,
+                "cx": 636.9456176757812,
+                "cy": 357.4011535644531,
+                "distortion": {
+                    "model": "distortion.brown_conrady",
+                    "coefficients": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            },
+            "fps": 30,
+            "format": "format.z16"
+        },
+        "stream.color": {
+            "intrinsics": {
+                "width": 1920,
+                "height": 1080,
+                "fx": 1362.76318359375,
+                "fy": 1361.2763671875,
+                "cx": 952.2548828125,
+                "cy": 559.040771484375,
+                "distortion": {
+                    "model": "distortion.inverse_brown_conrady",
+                    "coefficients": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            },
+            "fps": 30,
+            "format": "format.rgb8"
+        }
+    },
+    "extrinsics": {
+        "stream.depth_TO_stream.color": {
+            "rotation_matrix": [
+                0.9998504519462585,
+                -0.01636851392686367,
+                -0.005576580297201872,
+                0.016371319070458412,
+                0.9998658895492554,
+                0.0004576682113111019,
+                0.005568340886384249,
+                -0.0005488957394845784,
+                0.9999843239784241
+            ],
+            "translation_meters": [
+                0.014902649447321892,
+                -1.989275187952444e-05,
+                0.00019388012879062444
+            ]
+        },
+        "stream.color_TO_stream.depth": {
+            "rotation_matrix": [
+                0.9998504519462585,
+                0.016371319070458412,
+                0.005568340886384249,
+                -0.01636851392686367,
+                0.9998658895492554,
+                -0.0005488957394845784,
+                -0.005576580297201872,
+                0.0004576682113111019,
+                0.9999843239784241
+            ],
+            "translation_meters": [
+                -0.014899666421115398,
+                -0.0002241746842628345,
+                -0.00027687105466611683
+            ]
+        }
+    }
+}
