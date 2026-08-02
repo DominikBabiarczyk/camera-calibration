@@ -64,3 +64,8 @@ class CornerGRUSequenceCalibrationNet(nn.Module):
 
         _, hidden = self.temporal_encoder(frame_features)
         return self.regressor(hidden[-1])
+
+
+
+# Backwards-compatible name used by older training and evaluation code.
+CornerGRUCalibrationNet = CornerGRUSequenceCalibrationNet

@@ -25,6 +25,7 @@ from .models import (
     CNNTransformerCalibrationNet,
     CornerGRUCalibrationNet,
     EfficientNetB0CalibrationNet,
+    FisheyeCornerGRUSequenceCalibrationNet,
     ResNet18CalibrationNet,
     ResNet50CalibrationNet,
 )
@@ -60,9 +61,17 @@ def train(config: TrainingConfig) -> None:
         "cnn_lstm_sequence": CNNLSTMCalibrationNet,
         "cnn_transformer_sequence": CNNTransformerCalibrationNet,
         "corner_gru_sequence": CornerGRUCalibrationNet,
+        "fisheye_corner_gru_sequence": FisheyeCornerGRUSequenceCalibrationNet,
     }
     model_cls = model_map.get(config.model_name, CalibrationNet)
-    model = model_cls(num_outputs=config.num_outputs).to(device)
+    if config.model_name == "fisheye_corner_gru_sequence":
+        model = model_cls(
+            num_outputs=config.num_outputs,
+            num_points=(config.fisheye_board_squares_x - 1)
+            * (config.fisheye_board_squares_y - 1),
+        ).to(device)
+    else:
+        model = model_cls(num_outputs=config.num_outputs).to(device)
     criterion = LogCoshLoss()
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
@@ -172,6 +181,22 @@ def main() -> None:
         action="store_true",
         help="Generate checkerboard-corner sequences on-the-fly during training without saving files",
     )
+    parser.add_argument(
+        "--fisheye-corner-sequence",
+        action="store_true",
+        help="Generate fisheye corner sequences from a calibrated NPZ file.",
+    )
+    parser.add_argument(
+        "--fisheye-calibration-result",
+        type=str,
+        default="extern/XHOG-007_charuco/result.npz",
+        help="NPZ containing camera_matrix and four fisheye distortion coefficients.",
+    )
+    parser.add_argument("--fisheye-image-width", type=int, default=1920)
+    parser.add_argument("--fisheye-image-height", type=int, default=1080)
+    parser.add_argument("--fisheye-board-squares-x", type=int, default=10)
+    parser.add_argument("--fisheye-board-squares-y", type=int, default=10)
+    parser.add_argument("--fisheye-square-size-mm", type=float, default=30.0)
     parser.add_argument("--sequence-length", type=int, default=5, help="Number of frames per training sequence")
     parser.add_argument("--sequence-step", type=int, default=1, help="Stride between sequence windows")
     parser.add_argument(
@@ -187,6 +212,8 @@ def main() -> None:
     parser.add_argument("--synthetic-square-size", type=float, default=48.0, help="Synthetic checkerboard square size in pixels")
     parser.add_argument("--synthetic-seed", type=int, default=42, help="Base random seed for on-the-fly synthetic sequence generation")
     parser.add_argument("--model-name", type=str, default="resnet18_single", help="Model name to train")
+    parser.add_argument("--output-dir", type=str, default=None, help="Directory for training outputs")
+    parser.add_argument("--checkpoint-path", type=str, default=None, help="Path for the best-model checkpoint")
     parser.add_argument(
         "--early-stopping-patience",
         type=int,
@@ -211,6 +238,7 @@ def main() -> None:
         sequence_mode=args.sequence,
         corner_sequence_mode=args.corner_sequence,
         synthetic_corner_sequence_mode=args.synthetic_corner_sequence,
+        fisheye_corner_sequence_mode=args.fisheye_corner_sequence,
         sequence_length=args.sequence_length,
         sequence_step=args.sequence_step,
         synthetic_corner_config_path=Path(args.synthetic_corner_config),
@@ -220,11 +248,20 @@ def main() -> None:
         synthetic_board_rows=args.synthetic_board_rows,
         synthetic_square_size=args.synthetic_square_size,
         synthetic_seed=args.synthetic_seed,
+        fisheye_calibration_result_path=Path(args.fisheye_calibration_result),
+        fisheye_image_width=args.fisheye_image_width,
+        fisheye_image_height=args.fisheye_image_height,
+        fisheye_board_squares_x=args.fisheye_board_squares_x,
+        fisheye_board_squares_y=args.fisheye_board_squares_y,
+        fisheye_square_size_mm=args.fisheye_square_size_mm,
         model_name=args.model_name,
         early_stopping_patience=args.early_stopping_patience,
         early_stopping_min_delta=args.early_stopping_min_delta,
     )
-    if config.sequence_mode or config.corner_sequence_mode or config.synthetic_corner_sequence_mode:
+    if config.fisheye_corner_sequence_mode:
+        config.num_outputs = 8
+        config.output_names = ["fx", "fy", "cx", "cy", "k1", "k2", "k3", "k4"]
+    elif config.sequence_mode or config.corner_sequence_mode or config.synthetic_corner_sequence_mode:
         config.num_outputs = 9
         config.output_names = [
             "fx",
@@ -239,6 +276,10 @@ def main() -> None:
         ]
     if args.source_dir:
         config.source_images_dir = Path(args.source_dir)
+    if args.output_dir:
+        config.output_dir = Path(args.output_dir)
+    if args.checkpoint_path:
+        config.checkpoint_path = Path(args.checkpoint_path)
 
     train(config)
 

@@ -18,7 +18,12 @@ from torchvision import transforms
 
 from .config import TrainingConfig
 from .model import CalibrationNet
-from .models import CNNLSTMCalibrationNet, CNNTransformerCalibrationNet, CornerGRUCalibrationNet
+from .models import (
+    CNNLSTMCalibrationNet,
+    CNNTransformerCalibrationNet,
+    CornerGRUCalibrationNet,
+    FisheyeCornerGRUSequenceCalibrationNet,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -36,12 +41,22 @@ def load_model(checkpoint_path: Path, device: torch.device) -> torch.nn.Module:
         "cnn_lstm_sequence": CNNLSTMCalibrationNet,
         "cnn_transformer_sequence": CNNTransformerCalibrationNet,
         "corner_gru_sequence": CornerGRUCalibrationNet,
+        "fisheye_corner_gru_sequence": FisheyeCornerGRUSequenceCalibrationNet,
     }
     model_cls = model_map.get(config.model_name, CalibrationNet)
-    model = model_cls(num_outputs=config.num_outputs, pretrained=False)
+    if config.model_name == "fisheye_corner_gru_sequence":
+        model = model_cls(
+            num_outputs=config.num_outputs,
+            num_points=(config.fisheye_board_squares_x - 1)
+            * (config.fisheye_board_squares_y - 1),
+        )
+    elif config.model_name == "corner_gru_sequence":
+        model = model_cls(num_outputs=config.num_outputs)
+    else:
+        model = model_cls(num_outputs=config.num_outputs, pretrained=False)
     strict = config.model_name != "corner_gru_sequence"
     model.load_state_dict(checkpoint["model_state_dict"], strict=strict)
-    if not strict:
+    if config.model_name == "corner_gru_sequence":
         logger.warning(
             "Loaded GRU checkpoint with strict=False; cnn/frame_proj weights are missing."
         )

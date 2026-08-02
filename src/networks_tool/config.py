@@ -24,6 +24,7 @@ class TrainingConfig:
     sequence_mode: bool = False
     corner_sequence_mode: bool = False
     synthetic_corner_sequence_mode: bool = False
+    fisheye_corner_sequence_mode: bool = False
     sequence_length: int = 5
     sequence_step: int = 1
     model_name: str = "resnet18_single"
@@ -38,6 +39,15 @@ class TrainingConfig:
     synthetic_board_rows: int = 5
     synthetic_square_size: float = 48.0
     synthetic_seed: int = 42
+    fisheye_calibration_result_path: Path = Path("extern/XHOG-007_charuco/result.npz")
+    fisheye_image_width: int = 1920
+    fisheye_image_height: int = 1080
+    fisheye_board_squares_x: int = 10
+    fisheye_board_squares_y: int = 10
+    fisheye_square_size_mm: float = 30.0
+    fisheye_intrinsics_jitter: float = 0.10
+    fisheye_principal_point_jitter: float = 0.02
+    fisheye_distortion_jitter: float = 0.10
 
     # --- Distortion parameter ranges (Brown-Conrady model) ---
     # Focal length range (normalized by image width)

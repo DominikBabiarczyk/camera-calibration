@@ -636,6 +636,100 @@ class SyntheticCornerSequenceCalibrationDataset(Dataset):
         return sequence_tensor, self._build_target(static_params)
 
 
+class SyntheticFisheyeCornerSequenceCalibrationDataset(Dataset):
+    """Generate Full HD corner sequences for OpenCV's fisheye model.
+
+    The calibration matrix is used at its original 1920x1080 resolution;
+    unlike the legacy synthetic mode, no resizing of the camera or points is
+    performed.
+    """
+
+    def __init__(self, num_sequences: int, config: TrainingConfig, seed: int,
+                 deterministic: bool, split_name: str):
+        self.num_sequences = num_sequences
+        self.config = config
+        self.sequence_length = config.sequence_length
+        self.seed = seed
+        self.deterministic = deterministic
+        self.split_name = split_name
+        self.image_w = config.fisheye_image_width
+        self.image_h = config.fisheye_image_height
+        # A complete 10x10 board has 9x9 internal corner points.
+        self.board_cols = config.fisheye_board_squares_x - 1
+        self.board_rows = config.fisheye_board_squares_y - 1
+        self.square_size = config.fisheye_square_size_mm
+
+        result_path = Path(config.fisheye_calibration_result_path)
+        with np.load(result_path) as result:
+            self.base_camera_matrix = result["camera_matrix"].astype(np.float64)
+            self.base_distortion = result["distortion_coeffs"].astype(np.float64).reshape(4, 1)
+        if self.base_camera_matrix.shape != (3, 3):
+            raise ValueError("Fisheye camera_matrix must have shape (3, 3).")
+        if self.base_distortion.shape != (4, 1):
+            raise ValueError("Fisheye distortion_coeffs must contain four values.")
+        if num_sequences <= 0:
+            raise ValueError(f"{split_name} sequence count must be positive.")
+
+        self.pose_cfg = yaml.safe_load(
+            Path(config.synthetic_corner_config_path).read_text()
+        )
+
+    def __len__(self) -> int:
+        return self.num_sequences
+
+    def _make_rng(self, idx: int) -> np.random.RandomState:
+        if self.deterministic:
+            return np.random.RandomState(self.seed + idx)
+        worker = get_worker_info()
+        worker_offset = 0 if worker is None else worker.id * 1_000_003
+        random_seed = int(torch.randint(0, 2**31 - 1, (1,), dtype=torch.int64).item())
+        return np.random.RandomState(self.seed + worker_offset + random_seed)
+
+    def _camera_matrix(self, rng: np.random.RandomState) -> np.ndarray:
+        """Return a Full HD camera matrix without geometric resizing."""
+        camera = self.base_camera_matrix.copy()
+        camera[0, 0] *= 1.0 + rng.uniform(-self.config.fisheye_intrinsics_jitter, self.config.fisheye_intrinsics_jitter)
+        camera[1, 1] *= 1.0 + rng.uniform(-self.config.fisheye_intrinsics_jitter, self.config.fisheye_intrinsics_jitter)
+        camera[0, 2] += rng.uniform(-self.config.fisheye_principal_point_jitter, self.config.fisheye_principal_point_jitter) * self.image_w
+        camera[1, 2] += rng.uniform(-self.config.fisheye_principal_point_jitter, self.config.fisheye_principal_point_jitter) * self.image_h
+        return camera
+
+    def _build_target(self, camera: np.ndarray, distortion: np.ndarray) -> torch.Tensor:
+        return torch.tensor([
+            camera[0, 0] / self.image_w,
+            camera[1, 1] / self.image_h,
+            camera[0, 2] / self.image_w,
+            camera[1, 2] / self.image_h,
+            *distortion.reshape(-1).tolist(),
+        ], dtype=torch.float32)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        rng = self._make_rng(idx)
+        camera = self._camera_matrix(rng)
+        distortion = self.base_distortion + rng.uniform(
+            -self.config.fisheye_distortion_jitter,
+            self.config.fisheye_distortion_jitter,
+            size=(4, 1),
+        )
+        board_points = _generate_board_object_points(
+            self.board_cols + 1, self.board_rows + 1, self.square_size
+        ).reshape(-1, 1, 3).astype(np.float64)
+        sequence_features = []
+        for _ in range(self.sequence_length):
+            pose = _sample_camera_dynamic_params(self.pose_cfg, self.image_w, self.image_h, rng)
+            projected, _ = cv2.fisheye.projectPoints(
+                board_points, pose["rvec"].astype(np.float64), pose["tvec"].astype(np.float64),
+                camera, distortion,
+            )
+            inner = projected.reshape(self.board_rows + 1, self.board_cols + 1, 2)[:-1, :-1]
+            inner = inner.reshape(-1, 2).astype(np.float32)
+            # Preserve the actual Full HD pixel coordinates as model input.
+            centered = inner - inner.mean(axis=0, keepdims=True)
+            scale = np.maximum(centered.std(axis=0, keepdims=True), 1e-6)
+            sequence_features.append(np.concatenate([inner, centered / scale], axis=1))
+        return torch.tensor(np.stack(sequence_features), dtype=torch.float32), self._build_target(camera, distortion)
+
+
 def create_data_loaders(
     config: TrainingConfig,
 ) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
@@ -649,8 +743,21 @@ def create_data_loaders(
     """
     source_dir = Path(config.source_images_dir)
     extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
+    train_ds: Dataset
+    val_ds: Dataset
 
-    if config.synthetic_corner_sequence_mode:
+    if config.fisheye_corner_sequence_mode:
+        train_count = config.max_source_items
+        val_count = config.max_validation_items
+        if train_count is None or val_count is None:
+            raise ValueError("Fisheye mode requires --max-source-items and --max-validation-items.")
+        train_ds = SyntheticFisheyeCornerSequenceCalibrationDataset(
+            train_count, config, config.synthetic_seed, False, "train"
+        )
+        val_ds = SyntheticFisheyeCornerSequenceCalibrationDataset(
+            val_count, config, config.synthetic_seed + 1_000_000, True, "val"
+        )
+    elif config.synthetic_corner_sequence_mode:
         train_count = config.max_source_items
         val_count = config.max_validation_items
         if train_count is None:
