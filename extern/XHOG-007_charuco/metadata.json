@@ -1,0 +1,398 @@
+{
+  "format_version": 1,
+  "name": "XHOG-007_charuco",
+  "description": "",
+  "created_at": "2026-07-27T12:48:54+00:00",
+  "dwe_mode": "fisheye_dewarp",
+  "pattern_type": "charuco",
+  "is_fisheye": true,
+  "image_resolution": [
+    1920,
+    1080
+  ],
+  "rms_error": 0.5193329779314225,
+  "fov_h_deg": 85.28590569494656,
+  "fov_v_deg": 54.72188873735455,
+  "fov_h_rad": 1.4885198599222,
+  "fov_v_rad": 0.9550771313768394,
+  "num_images": 29,
+  "extra": {
+    "detection": {
+      "cache_version": 1,
+      "pattern": {
+        "pattern_type": "asymmetric_circles",
+        "pattern_size": [
+          10,
+          25
+        ],
+        "aruco_dict": "DICT_4X4_50",
+        "square_size": 14.0,
+        "marker_length": 15.0
+      },
+      "records": [
+        {
+          "index": 0,
+          "filename": "capture_0182.png",
+          "image_hash": "16512e25e9e7d2881672c168065e846bdd9986aa84e4c98ada65fb354b43d3f2",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 1,
+          "filename": "capture_0183.png",
+          "image_hash": "f20422d2be7bb8b267579a5641ac49b80f2f2faef2f7affeab516a1a722840c3",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 2,
+          "filename": "capture_0184.png",
+          "image_hash": "2409c466949016011103100f580534aca83570535722d499bab2179806493909",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 3,
+          "filename": "capture_0185.png",
+          "image_hash": "42060c7a5c1e32904a097473a4ed7f54e17c16593f27f9a66b9aaccbef07305f",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 4,
+          "filename": "capture_0186.png",
+          "image_hash": "6950615cc8e1ccb20a48584ccf8e49250038092d7f77b43cd2a1d16b8ac34753",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 5,
+          "filename": "capture_0187.png",
+          "image_hash": "e3d9aa7221430f491ecab3f1021c3c6de1514ef1d203ee31560f34eb12771949",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 6,
+          "filename": "capture_0188.png",
+          "image_hash": "8a230315b1844d67b27b323374fcc4a54448f507309272184865f788f5736f39",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 7,
+          "filename": "capture_0189.png",
+          "image_hash": "a1583663ea291a0711fdcc945f343e4d62844063ced84c81e53eb578cd75de9e",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 8,
+          "filename": "capture_0190.png",
+          "image_hash": "857f912e7872c0ece67f6362660fedc1063d3579eaebb4719bd82831f707fca9",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 9,
+          "filename": "capture_0191.png",
+          "image_hash": "bbc7f367904cc9fc91203403ab5a4fb8330676bca9c54d783541bf93028b7a16",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 10,
+          "filename": "capture_0192.png",
+          "image_hash": "46eb4bb930e6a8518c2808ce202657b9b8c9cce6349e327cd61f99dd87f87868",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 11,
+          "filename": "capture_0193.png",
+          "image_hash": "1e45264ac29c53f50602accdb810abe185e5df507ff9452bf2aed6be57f35245",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 12,
+          "filename": "capture_0194.png",
+          "image_hash": "a2ecc26d87a0cda028489e8d08120e85b83efa74e4e05dfdc4a4ffd0c7cf0f01",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 13,
+          "filename": "capture_0195.png",
+          "image_hash": "965897901bcc6d6a7c8a859a7f19f9e4482b89be87ad8ba583d747b2a9566700",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 14,
+          "filename": "capture_0196.png",
+          "image_hash": "c3c7e3b56373c084e7d6e403ac3e116e7cf299a13206f2dd38bc2db44c1f6120",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 15,
+          "filename": "capture_0197.png",
+          "image_hash": "7378483a04f4d304ef301cfc340eabf182c0902f379b9a78e0cdc7ed2078f929",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 16,
+          "filename": "capture_0198.png",
+          "image_hash": "67011b531743f15ddc7f19a56eef9c3feccb166f26fba526bb295de51a04fc09",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 17,
+          "filename": "capture_0199.png",
+          "image_hash": "8944840804b51ea9ab0c4293e2aac19b2c804cc49f1cf822c5e962a5f0e4cae3",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 18,
+          "filename": "capture_0200.png",
+          "image_hash": "37ffeeb2e060dfce6e4c514e0691e338556e8eed0356b851646809e5acb4ec3f",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 19,
+          "filename": "capture_0201.png",
+          "image_hash": "426a7a6e3f611a39328d2d3d74fab02290b1bc35c1cec2070c2b2332822ca6bc",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 20,
+          "filename": "capture_0202.png",
+          "image_hash": "dc873609cd31e4cfa699e3b61caf531b68b89f6f7b48bbc10db73d5c86b00548",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 21,
+          "filename": "capture_0203.png",
+          "image_hash": "d2dc123779507c0f0aa1e58b3330be582825c150d5fc4a16561fc4b6cbc34810",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 22,
+          "filename": "capture_0204.png",
+          "image_hash": "05f2de6d1570257514fce38abbabcb32b48a127f2bf6d4572f85ee1a57c4c0b3",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 23,
+          "filename": "capture_0205.png",
+          "image_hash": "71017bf7e23325d427fe9698e4ac258155b25e00699da487fdcfb5279ca5e784",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 24,
+          "filename": "capture_0206.png",
+          "image_hash": "03452480a046979efaa710e5f75c1499927701e91744937f92b0b65d3f33260e",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 25,
+          "filename": "capture_0207.png",
+          "image_hash": "369371515bcc157592ba2c75af1525bd842c092087ca4ad744307d738da3b365",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 26,
+          "filename": "capture_0208.png",
+          "image_hash": "8922d4b111d8b80d69b046e8655a41415c3b3220d7a350bcdd5e309a30746f25",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 27,
+          "filename": "capture_0209.png",
+          "image_hash": "caccfffd6cbb6a9d123c7f79542839f295f1e7833f3c08e09bd8906c9a1eb45d",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 28,
+          "filename": "capture_0210.png",
+          "image_hash": "bdd926d07ce962dffe52b72ce5053a2e11583bf237b1b87734db1a74f4d238a5",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "index": 29,
+          "filename": "capture_0211.png",
+          "image_hash": "baff7647f7165197ff308df591ce0e21fab42564537bf142ddf22cf70c0dc1e4",
+          "pattern_key": "1378cae7c0152646b2ece80f43247935cd8666415447b71921a75dc9b529b024",
+          "found": false,
+          "image_size": [
+            1920,
+            1080
+          ]
+        }
+      ]
+    },
+    "images": [
+      "capture_0182.png",
+      "capture_0183.png",
+      "capture_0184.png",
+      "capture_0185.png",
+      "capture_0186.png",
+      "capture_0187.png",
+      "capture_0188.png",
+      "capture_0189.png",
+      "capture_0190.png",
+      "capture_0191.png",
+      "capture_0192.png",
+      "capture_0193.png",
+      "capture_0194.png",
+      "capture_0195.png",
+      "capture_0196.png",
+      "capture_0197.png",
+      "capture_0198.png",
+      "capture_0199.png",
+      "capture_0200.png",
+      "capture_0201.png",
+      "capture_0202.png",
+      "capture_0203.png",
+      "capture_0204.png",
+      "capture_0205.png",
+      "capture_0206.png",
+      "capture_0207.png",
+      "capture_0208.png",
+      "capture_0209.png",
+      "capture_0210.png",
+      "capture_0211.png"
+    ]
+  }
+}
