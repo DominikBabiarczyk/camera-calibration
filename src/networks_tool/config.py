@@ -45,9 +45,17 @@ class TrainingConfig:
     fisheye_board_squares_x: int = 10
     fisheye_board_squares_y: int = 10
     fisheye_square_size_mm: float = 30.0
+    fisheye_pitch_range_deg: tuple[float, float] = (-45.0, 45.0)
+    fisheye_yaw_range_deg: tuple[float, float] = (-45.0, 45.0)
+    fisheye_roll_range_deg: tuple[float, float] = (-30.0, 30.0)
+    fisheye_tvec_x_range: tuple[float, float] = (-0.4, 0.4)
+    fisheye_tvec_y_range: tuple[float, float] = (-0.4, 0.4)
+    fisheye_tvec_z_range: tuple[float, float] = (0.4, 3.5)
     fisheye_intrinsics_jitter: float = 0.10
     fisheye_principal_point_jitter: float = 0.02
     fisheye_distortion_jitter: float = 0.10
+    save_epoch_data: bool = False
+    epoch_data_dir: Path = Path("outputs/calibration_net_fisheye/epochs")
 
     # --- Distortion parameter ranges (Brown-Conrady model) ---
     # Focal length range (normalized by image width)

@@ -86,6 +86,10 @@ def train(config: TrainingConfig) -> None:
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
     for epoch in range(1, config.num_epochs + 1):
+        if config.fisheye_corner_sequence_mode and hasattr(train_loader.dataset, "refresh_epoch"):
+            save_dir = config.epoch_data_dir if config.save_epoch_data else None
+            train_loader.dataset.refresh_epoch(epoch, save_dir)
+            logger.info("Generated a new random fisheye dataset for epoch %d", epoch)
         # --- Train ---
         model.train()
         train_loss = 0.0
@@ -197,6 +201,14 @@ def main() -> None:
     parser.add_argument("--fisheye-board-squares-x", type=int, default=10)
     parser.add_argument("--fisheye-board-squares-y", type=int, default=10)
     parser.add_argument("--fisheye-square-size-mm", type=float, default=30.0)
+    parser.add_argument("--fisheye-pitch-min", type=float, default=-45.0)
+    parser.add_argument("--fisheye-pitch-max", type=float, default=45.0)
+    parser.add_argument("--fisheye-yaw-min", type=float, default=-45.0)
+    parser.add_argument("--fisheye-yaw-max", type=float, default=45.0)
+    parser.add_argument("--fisheye-roll-min", type=float, default=-30.0)
+    parser.add_argument("--fisheye-roll-max", type=float, default=30.0)
+    parser.add_argument("--fisheye-tvec-z-min", type=float, default=0.4)
+    parser.add_argument("--fisheye-tvec-z-max", type=float, default=3.5)
     parser.add_argument("--sequence-length", type=int, default=5, help="Number of frames per training sequence")
     parser.add_argument("--sequence-step", type=int, default=1, help="Stride between sequence windows")
     parser.add_argument(
@@ -214,6 +226,17 @@ def main() -> None:
     parser.add_argument("--model-name", type=str, default="resnet18_single", help="Model name to train")
     parser.add_argument("--output-dir", type=str, default=None, help="Directory for training outputs")
     parser.add_argument("--checkpoint-path", type=str, default=None, help="Path for the best-model checkpoint")
+    parser.add_argument(
+        "--save-epoch-data",
+        action="store_true",
+        help="Save the generated fisheye training data for every epoch.",
+    )
+    parser.add_argument(
+        "--epoch-data-dir",
+        type=str,
+        default="outputs/calibration_net_fisheye/epochs",
+        help="Directory for per-epoch generated NPZ files.",
+    )
     parser.add_argument(
         "--early-stopping-patience",
         type=int,
@@ -254,6 +277,12 @@ def main() -> None:
         fisheye_board_squares_x=args.fisheye_board_squares_x,
         fisheye_board_squares_y=args.fisheye_board_squares_y,
         fisheye_square_size_mm=args.fisheye_square_size_mm,
+        fisheye_pitch_range_deg=(args.fisheye_pitch_min, args.fisheye_pitch_max),
+        fisheye_yaw_range_deg=(args.fisheye_yaw_min, args.fisheye_yaw_max),
+        fisheye_roll_range_deg=(args.fisheye_roll_min, args.fisheye_roll_max),
+        fisheye_tvec_z_range=(args.fisheye_tvec_z_min, args.fisheye_tvec_z_max),
+        save_epoch_data=args.save_epoch_data,
+        epoch_data_dir=Path(args.epoch_data_dir),
         model_name=args.model_name,
         early_stopping_patience=args.early_stopping_patience,
         early_stopping_min_delta=args.early_stopping_min_delta,

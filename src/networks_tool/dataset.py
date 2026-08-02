@@ -673,6 +673,8 @@ class SyntheticFisheyeCornerSequenceCalibrationDataset(Dataset):
         self.pose_cfg = yaml.safe_load(
             Path(config.synthetic_corner_config_path).read_text()
         )
+        self._epoch_seed: int | None = None
+        self._epoch_cache: list[tuple[torch.Tensor, torch.Tensor]] | None = None
 
     def __len__(self) -> int:
         return self.num_sequences
@@ -680,30 +682,40 @@ class SyntheticFisheyeCornerSequenceCalibrationDataset(Dataset):
     def _make_rng(self, idx: int) -> np.random.RandomState:
         if self.deterministic:
             return np.random.RandomState(self.seed + idx)
+        if self._epoch_seed is not None:
+            return np.random.RandomState(self._epoch_seed + idx)
         worker = get_worker_info()
         worker_offset = 0 if worker is None else worker.id * 1_000_003
         random_seed = int(torch.randint(0, 2**31 - 1, (1,), dtype=torch.int64).item())
         return np.random.RandomState(self.seed + worker_offset + random_seed)
 
-    def _camera_matrix(self, rng: np.random.RandomState) -> np.ndarray:
-        """Return a Full HD camera matrix without geometric resizing."""
-        camera = self.base_camera_matrix.copy()
-        camera[0, 0] *= 1.0 + rng.uniform(-self.config.fisheye_intrinsics_jitter, self.config.fisheye_intrinsics_jitter)
-        camera[1, 1] *= 1.0 + rng.uniform(-self.config.fisheye_intrinsics_jitter, self.config.fisheye_intrinsics_jitter)
-        camera[0, 2] += rng.uniform(-self.config.fisheye_principal_point_jitter, self.config.fisheye_principal_point_jitter) * self.image_w
-        camera[1, 2] += rng.uniform(-self.config.fisheye_principal_point_jitter, self.config.fisheye_principal_point_jitter) * self.image_h
-        return camera
+    def refresh_epoch(self, epoch: int, save_dir: Path | None = None) -> None:
+        """Generate a new random dataset for one epoch and optionally save it."""
+        if self.deterministic:
+            return
+        self._epoch_seed = int(np.random.SeedSequence().generate_state(1)[0])
+        self._epoch_cache = [self._generate_item(i) for i in range(self.num_sequences)]
+        if save_dir is not None:
+            epoch_dir = Path(save_dir)
+            epoch_dir.mkdir(parents=True, exist_ok=True)
+            features = np.stack([item[0].numpy() for item in self._epoch_cache])
+            targets = np.stack([item[1].numpy() for item in self._epoch_cache])
+            np.savez_compressed(
+                epoch_dir / f"epoch_{epoch:04d}.npz",
+                features=features,
+                targets=targets,
+                epoch=np.array(epoch, dtype=np.int64),
+                seed=np.array(self._epoch_seed, dtype=np.uint64),
+                image_width=np.array(self.image_w, dtype=np.int32),
+                image_height=np.array(self.image_h, dtype=np.int32),
+                board_squares=np.array([
+                    self.config.fisheye_board_squares_x,
+                    self.config.fisheye_board_squares_y,
+                ], dtype=np.int32),
+                square_size_mm=np.array(self.config.fisheye_square_size_mm, dtype=np.float32),
+            )
 
-    def _build_target(self, camera: np.ndarray, distortion: np.ndarray) -> torch.Tensor:
-        return torch.tensor([
-            camera[0, 0] / self.image_w,
-            camera[1, 1] / self.image_h,
-            camera[0, 2] / self.image_w,
-            camera[1, 2] / self.image_h,
-            *distortion.reshape(-1).tolist(),
-        ], dtype=torch.float32)
-
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def _generate_item(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         rng = self._make_rng(idx)
         camera = self._camera_matrix(rng)
         distortion = self.base_distortion + rng.uniform(
@@ -716,18 +728,60 @@ class SyntheticFisheyeCornerSequenceCalibrationDataset(Dataset):
         ).reshape(-1, 1, 3).astype(np.float64)
         sequence_features = []
         for _ in range(self.sequence_length):
-            pose = _sample_camera_dynamic_params(self.pose_cfg, self.image_w, self.image_h, rng)
+            pose = self._sample_fisheye_pose(rng)
             projected, _ = cv2.fisheye.projectPoints(
-                board_points, pose["rvec"].astype(np.float64), pose["tvec"].astype(np.float64),
-                camera, distortion,
+                board_points,
+                pose["rvec"].astype(np.float64),
+                pose["tvec"].astype(np.float64),
+                camera,
+                distortion,
             )
             inner = projected.reshape(self.board_rows + 1, self.board_cols + 1, 2)[:-1, :-1]
             inner = inner.reshape(-1, 2).astype(np.float32)
-            # Preserve the actual Full HD pixel coordinates as model input.
             centered = inner - inner.mean(axis=0, keepdims=True)
             scale = np.maximum(centered.std(axis=0, keepdims=True), 1e-6)
             sequence_features.append(np.concatenate([inner, centered / scale], axis=1))
-        return torch.tensor(np.stack(sequence_features), dtype=torch.float32), self._build_target(camera, distortion)
+        return (
+            torch.tensor(np.stack(sequence_features), dtype=torch.float32),
+            self._build_target(camera, distortion),
+        )
+
+    def _camera_matrix(self, rng: np.random.RandomState) -> np.ndarray:
+        """Return a Full HD camera matrix without geometric resizing."""
+        camera = self.base_camera_matrix.copy()
+        camera[0, 0] *= 1.0 + rng.uniform(-self.config.fisheye_intrinsics_jitter, self.config.fisheye_intrinsics_jitter)
+        camera[1, 1] *= 1.0 + rng.uniform(-self.config.fisheye_intrinsics_jitter, self.config.fisheye_intrinsics_jitter)
+        camera[0, 2] += rng.uniform(-self.config.fisheye_principal_point_jitter, self.config.fisheye_principal_point_jitter) * self.image_w
+        camera[1, 2] += rng.uniform(-self.config.fisheye_principal_point_jitter, self.config.fisheye_principal_point_jitter) * self.image_h
+        return camera
+
+    def _sample_fisheye_pose(self, rng: np.random.RandomState) -> dict[str, np.ndarray]:
+        """Sample a wider pose range than the legacy synthetic generator."""
+        pitch = np.deg2rad(rng.uniform(*self.config.fisheye_pitch_range_deg))
+        yaw = np.deg2rad(rng.uniform(*self.config.fisheye_yaw_range_deg))
+        roll = np.deg2rad(rng.uniform(*self.config.fisheye_roll_range_deg))
+        return {
+            "rvec": _euler_to_rvec(pitch, yaw, roll),
+            "tvec": np.array([
+                rng.uniform(*self.config.fisheye_tvec_x_range) * self.image_w,
+                rng.uniform(*self.config.fisheye_tvec_y_range) * self.image_h,
+                rng.uniform(*self.config.fisheye_tvec_z_range) * max(self.image_w, self.image_h),
+            ], dtype=float).reshape(3, 1),
+        }
+
+    def _build_target(self, camera: np.ndarray, distortion: np.ndarray) -> torch.Tensor:
+        return torch.tensor([
+            camera[0, 0] / self.image_w,
+            camera[1, 1] / self.image_h,
+            camera[0, 2] / self.image_w,
+            camera[1, 2] / self.image_h,
+            *distortion.reshape(-1).tolist(),
+        ], dtype=torch.float32)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        if self._epoch_cache is not None:
+            return self._epoch_cache[idx]
+        return self._generate_item(idx)
 
 
 def create_data_loaders(
@@ -854,7 +908,7 @@ def create_data_loaders(
         train_ds,
         batch_size=config.batch_size,
         shuffle=True,
-        num_workers=config.num_workers,
+        num_workers=0 if config.fisheye_corner_sequence_mode else config.num_workers,
         pin_memory=True,
     )
     val_loader = torch.utils.data.DataLoader(
