@@ -14,7 +14,7 @@ CALIBRATION_RESULT="${7:-extern/XHOG-007_charuco/result.npz}"
 VAL_SEQUENCES="${8:-2000}"
 SEED="${9:-42}"
 
-echo "Training fisheye corner GRU from $CALIBRATION_RESULT"
+echo "Training fisheye corner SSM from $CALIBRATION_RESULT"
 env PYTHONPATH="$ROOT_DIR" .venv/bin/python -m src.networks_tool.train \
   --fisheye-corner-sequence \
   --sequence-length 10 \
@@ -28,11 +28,11 @@ env PYTHONPATH="$ROOT_DIR" .venv/bin/python -m src.networks_tool.train \
   --fisheye-yaw-min -45 --fisheye-yaw-max 45 \
   --fisheye-roll-min -30 --fisheye-roll-max 30 \
   --fisheye-tvec-z-min 0.4 --fisheye-tvec-z-max 3.5 \
-  --model-name fisheye_corner_gru_sequence \
-  --output-dir outputs/calibration_net_fisheye \
-  --checkpoint-path outputs/calibration_net_fisheye/best_model.pth \
+  --model-name fisheye_corner_ssm_sequence \
+  --output-dir outputs/calibration_net_fisheye_ssm \
+  --checkpoint-path outputs/calibration_net_fisheye_ssm/best_model.pth \
   --save-epoch-data \
-  --epoch-data-dir outputs/calibration_net_fisheye/epochs \
+  --epoch-data-dir outputs/calibration_net_fisheye_ssm/epochs \
   --epochs "$EPOCHS" --batch-size "$BATCH_SIZE" --lr "$LR" \
   --max-source-items "$TRAIN_SEQUENCES" \
   --max-validation-items "$VAL_SEQUENCES" \
