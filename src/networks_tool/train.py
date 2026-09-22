@@ -7,6 +7,8 @@ Usage:
 
 import argparse
 import logging
+import pathlib
+import sys
 from pathlib import Path
 
 import torch
@@ -26,6 +28,8 @@ from .models import (
     CornerGRUCalibrationNet,
     EfficientNetB0CalibrationNet,
     FisheyeCornerGRUSequenceCalibrationNet,
+    FisheyeCornerLSTMSequenceCalibrationNet,
+    FisheyeCornerSSMSequenceCalibrationNet,
     ResNet18CalibrationNet,
     ResNet50CalibrationNet,
 )
@@ -34,7 +38,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def train(config: TrainingConfig) -> None:
+def train(
+    config: TrainingConfig,
+    resume_checkpoint_path: Path | None = None,
+    resume_optimizer_state: bool = False,
+) -> None:
     """Full training pipeline."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Using device: %s", device)
@@ -62,9 +70,15 @@ def train(config: TrainingConfig) -> None:
         "cnn_transformer_sequence": CNNTransformerCalibrationNet,
         "corner_gru_sequence": CornerGRUCalibrationNet,
         "fisheye_corner_gru_sequence": FisheyeCornerGRUSequenceCalibrationNet,
+        "fisheye_corner_lstm_sequence": FisheyeCornerLSTMSequenceCalibrationNet,
+        "fisheye_corner_ssm_sequence": FisheyeCornerSSMSequenceCalibrationNet,
     }
     model_cls = model_map.get(config.model_name, CalibrationNet)
-    if config.model_name == "fisheye_corner_gru_sequence":
+    if config.model_name in {
+        "fisheye_corner_gru_sequence",
+        "fisheye_corner_lstm_sequence",
+        "fisheye_corner_ssm_sequence",
+    }:
         model = model_cls(
             num_outputs=config.num_outputs,
             num_points=(config.fisheye_board_squares_x - 1)
@@ -72,6 +86,25 @@ def train(config: TrainingConfig) -> None:
         ).to(device)
     else:
         model = model_cls(num_outputs=config.num_outputs).to(device)
+    resume_payload: dict | None = None
+    if resume_checkpoint_path is not None:
+        # Compatibility shim for checkpoints serialized with pathlib internals.
+        sys.modules.setdefault("pathlib._local", pathlib)
+        resume_payload = torch.load(
+            resume_checkpoint_path,
+            map_location=device,
+            weights_only=False,
+        )
+        if isinstance(resume_payload, dict) and "model_state_dict" in resume_payload:
+            model.load_state_dict(resume_payload["model_state_dict"])
+        elif isinstance(resume_payload, dict):
+            model.load_state_dict(resume_payload)
+        else:
+            raise ValueError(
+                f"Unsupported checkpoint format at {resume_checkpoint_path}"
+            )
+        logger.info("Loaded checkpoint for fine-tuning: %s", resume_checkpoint_path)
+
     criterion = LogCoshLoss()
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
@@ -79,6 +112,14 @@ def train(config: TrainingConfig) -> None:
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=config.num_epochs
     )
+    if (
+        resume_optimizer_state
+        and resume_payload is not None
+        and isinstance(resume_payload, dict)
+        and "optimizer_state_dict" in resume_payload
+    ):
+        optimizer.load_state_dict(resume_payload["optimizer_state_dict"])
+        logger.info("Loaded optimizer state from checkpoint")
 
     # Training loop
     best_val_loss = float("inf")
@@ -196,6 +237,12 @@ def main() -> None:
         default="extern/XHOG-007_charuco/result.npz",
         help="NPZ containing camera_matrix and four fisheye distortion coefficients.",
     )
+    parser.add_argument(
+        "--fisheye-secondary-calibration-result",
+        type=str,
+        default=None,
+        help="Optional second NPZ camera profile used for mixed-camera fisheye sampling.",
+    )
     parser.add_argument("--fisheye-image-width", type=int, default=1920)
     parser.add_argument("--fisheye-image-height", type=int, default=1080)
     parser.add_argument("--fisheye-board-squares-x", type=int, default=10)
@@ -209,6 +256,9 @@ def main() -> None:
     parser.add_argument("--fisheye-roll-max", type=float, default=30.0)
     parser.add_argument("--fisheye-tvec-z-min", type=float, default=0.4)
     parser.add_argument("--fisheye-tvec-z-max", type=float, default=3.5)
+    parser.add_argument("--fisheye-mix-primary-ratio", type=float, default=1.0)
+    parser.add_argument("--fisheye-mix-secondary-ratio", type=float, default=0.0)
+    parser.add_argument("--fisheye-mix-random-ratio", type=float, default=0.0)
     parser.add_argument("--sequence-length", type=int, default=5, help="Number of frames per training sequence")
     parser.add_argument("--sequence-step", type=int, default=1, help="Stride between sequence windows")
     parser.add_argument(
@@ -226,6 +276,17 @@ def main() -> None:
     parser.add_argument("--model-name", type=str, default="resnet18_single", help="Model name to train")
     parser.add_argument("--output-dir", type=str, default=None, help="Directory for training outputs")
     parser.add_argument("--checkpoint-path", type=str, default=None, help="Path for the best-model checkpoint")
+    parser.add_argument(
+        "--resume-checkpoint",
+        type=str,
+        default=None,
+        help="Optional checkpoint path to initialize model weights for fine-tuning.",
+    )
+    parser.add_argument(
+        "--resume-optimizer-state",
+        action="store_true",
+        help="Also restore optimizer state from --resume-checkpoint.",
+    )
     parser.add_argument(
         "--save-epoch-data",
         action="store_true",
@@ -272,6 +333,11 @@ def main() -> None:
         synthetic_square_size=args.synthetic_square_size,
         synthetic_seed=args.synthetic_seed,
         fisheye_calibration_result_path=Path(args.fisheye_calibration_result),
+        fisheye_secondary_calibration_result_path=(
+            Path(args.fisheye_secondary_calibration_result)
+            if args.fisheye_secondary_calibration_result
+            else None
+        ),
         fisheye_image_width=args.fisheye_image_width,
         fisheye_image_height=args.fisheye_image_height,
         fisheye_board_squares_x=args.fisheye_board_squares_x,
@@ -281,6 +347,9 @@ def main() -> None:
         fisheye_yaw_range_deg=(args.fisheye_yaw_min, args.fisheye_yaw_max),
         fisheye_roll_range_deg=(args.fisheye_roll_min, args.fisheye_roll_max),
         fisheye_tvec_z_range=(args.fisheye_tvec_z_min, args.fisheye_tvec_z_max),
+        fisheye_mix_primary_ratio=args.fisheye_mix_primary_ratio,
+        fisheye_mix_secondary_ratio=args.fisheye_mix_secondary_ratio,
+        fisheye_mix_random_ratio=args.fisheye_mix_random_ratio,
         save_epoch_data=args.save_epoch_data,
         epoch_data_dir=Path(args.epoch_data_dir),
         model_name=args.model_name,
@@ -310,7 +379,12 @@ def main() -> None:
     if args.checkpoint_path:
         config.checkpoint_path = Path(args.checkpoint_path)
 
-    train(config)
+    resume_checkpoint_path = Path(args.resume_checkpoint) if args.resume_checkpoint else None
+    train(
+        config,
+        resume_checkpoint_path=resume_checkpoint_path,
+        resume_optimizer_state=args.resume_optimizer_state,
+    )
 
 
 if __name__ == "__main__":

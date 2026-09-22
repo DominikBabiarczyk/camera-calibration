@@ -663,6 +663,24 @@ class SyntheticFisheyeCornerSequenceCalibrationDataset(Dataset):
         with np.load(result_path) as result:
             self.base_camera_matrix = result["camera_matrix"].astype(np.float64)
             self.base_distortion = result["distortion_coeffs"].astype(np.float64).reshape(4, 1)
+
+        self.secondary_camera_matrix: np.ndarray | None = None
+        self.secondary_distortion: np.ndarray | None = None
+        if config.fisheye_secondary_calibration_result_path is not None:
+            second_path = Path(config.fisheye_secondary_calibration_result_path)
+            with np.load(second_path) as result:
+                self.secondary_camera_matrix = result["camera_matrix"].astype(np.float64)
+                self.secondary_distortion = result["distortion_coeffs"].astype(np.float64).reshape(4, 1)
+
+        self.mix_primary_ratio = max(0.0, float(config.fisheye_mix_primary_ratio))
+        self.mix_secondary_ratio = max(0.0, float(config.fisheye_mix_secondary_ratio))
+        self.mix_random_ratio = max(0.0, float(config.fisheye_mix_random_ratio))
+        self.mix_total = self.mix_primary_ratio + self.mix_secondary_ratio + self.mix_random_ratio
+        if self.mix_total <= 0.0:
+            self.mix_primary_ratio = 1.0
+            self.mix_secondary_ratio = 0.0
+            self.mix_random_ratio = 0.0
+            self.mix_total = 1.0
         if self.base_camera_matrix.shape != (3, 3):
             raise ValueError("Fisheye camera_matrix must have shape (3, 3).")
         if self.base_distortion.shape != (4, 1):
@@ -717,8 +735,8 @@ class SyntheticFisheyeCornerSequenceCalibrationDataset(Dataset):
 
     def _generate_item(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         rng = self._make_rng(idx)
-        camera = self._camera_matrix(rng)
-        distortion = self.base_distortion + rng.uniform(
+        camera, base_distortion = self._sample_camera_profile(rng)
+        distortion = base_distortion + rng.uniform(
             -self.config.fisheye_distortion_jitter,
             self.config.fisheye_distortion_jitter,
             size=(4, 1),
@@ -746,6 +764,21 @@ class SyntheticFisheyeCornerSequenceCalibrationDataset(Dataset):
             self._build_target(camera, distortion),
         )
 
+    def _sample_camera_profile(self, rng: np.random.RandomState) -> tuple[np.ndarray, np.ndarray]:
+        draw = rng.rand() * self.mix_total
+        primary_border = self.mix_primary_ratio
+        secondary_border = self.mix_primary_ratio + self.mix_secondary_ratio
+
+        if draw < primary_border:
+            camera = self._camera_matrix_from_base(rng, self.base_camera_matrix)
+            return camera, self.base_distortion.copy()
+
+        if draw < secondary_border and self.secondary_camera_matrix is not None and self.secondary_distortion is not None:
+            camera = self._camera_matrix_from_base(rng, self.secondary_camera_matrix)
+            return camera, self.secondary_distortion.copy()
+
+        return self._random_camera_profile(rng)
+
     def _camera_matrix(self, rng: np.random.RandomState) -> np.ndarray:
         """Return a Full HD camera matrix without geometric resizing."""
         camera = self.base_camera_matrix.copy()
@@ -754,6 +787,38 @@ class SyntheticFisheyeCornerSequenceCalibrationDataset(Dataset):
         camera[0, 2] += rng.uniform(-self.config.fisheye_principal_point_jitter, self.config.fisheye_principal_point_jitter) * self.image_w
         camera[1, 2] += rng.uniform(-self.config.fisheye_principal_point_jitter, self.config.fisheye_principal_point_jitter) * self.image_h
         return camera
+
+    def _camera_matrix_from_base(self, rng: np.random.RandomState, base_camera: np.ndarray) -> np.ndarray:
+        camera = base_camera.copy()
+        camera[0, 0] *= 1.0 + rng.uniform(-self.config.fisheye_intrinsics_jitter, self.config.fisheye_intrinsics_jitter)
+        camera[1, 1] *= 1.0 + rng.uniform(-self.config.fisheye_intrinsics_jitter, self.config.fisheye_intrinsics_jitter)
+        camera[0, 2] += rng.uniform(-self.config.fisheye_principal_point_jitter, self.config.fisheye_principal_point_jitter) * self.image_w
+        camera[1, 2] += rng.uniform(-self.config.fisheye_principal_point_jitter, self.config.fisheye_principal_point_jitter) * self.image_h
+        return camera
+
+    def _random_camera_profile(self, rng: np.random.RandomState) -> tuple[np.ndarray, np.ndarray]:
+        fx = rng.uniform(0.45, 0.95) * self.image_w
+        fy = rng.uniform(0.45, 1.05) * self.image_h
+        cx = rng.uniform(0.35, 0.65) * self.image_w
+        cy = rng.uniform(0.35, 0.65) * self.image_h
+        camera = np.array(
+            [
+                [fx, 0.0, cx],
+                [0.0, fy, cy],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
+        distortion = np.array(
+            [
+                [rng.uniform(-0.8, 0.8)],
+                [rng.uniform(-1.2, 1.2)],
+                [rng.uniform(-6.0, 6.0)],
+                [rng.uniform(-12.0, 12.0)],
+            ],
+            dtype=np.float64,
+        )
+        return camera, distortion
 
     def _sample_fisheye_pose(self, rng: np.random.RandomState) -> dict[str, np.ndarray]:
         """Sample a wider pose range than the legacy synthetic generator."""

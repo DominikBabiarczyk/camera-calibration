@@ -9,6 +9,8 @@ from .cnn_rnn_sequence import CNNLSTMCalibrationNet
 from .cnn_transformer_sequence import CNNTransformerCalibrationNet
 from .corner_gru_sequence import CornerGRUCalibrationNet
 from .fisheye_corner_gru_sequence import FisheyeCornerGRUSequenceCalibrationNet
+from .fisheye_corner_lstm_sequence import FisheyeCornerLSTMSequenceCalibrationNet
+from .fisheye_corner_ssm_sequence import FisheyeCornerSSMSequenceCalibrationNet
 from .efficientnet_b0_single import EfficientNetB0CalibrationNet
 from .opencv_corners_sequence import OpenCVCornersCalibrationModel
 from .resnet18_single import ResNet18CalibrationNet
@@ -24,4 +26,6 @@ __all__ = [
     "CornerGRUCalibrationNet",
     "OpenCVCornersCalibrationModel",
     "FisheyeCornerGRUSequenceCalibrationNet",
+    "FisheyeCornerLSTMSequenceCalibrationNet",
+    "FisheyeCornerSSMSequenceCalibrationNet",
 ]

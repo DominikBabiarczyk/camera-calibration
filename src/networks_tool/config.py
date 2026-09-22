@@ -40,6 +40,7 @@ class TrainingConfig:
     synthetic_square_size: float = 48.0
     synthetic_seed: int = 42
     fisheye_calibration_result_path: Path = Path("extern/XHOG-007_charuco/result.npz")
+    fisheye_secondary_calibration_result_path: Path | None = None
     fisheye_image_width: int = 1920
     fisheye_image_height: int = 1080
     fisheye_board_squares_x: int = 10
@@ -54,6 +55,9 @@ class TrainingConfig:
     fisheye_intrinsics_jitter: float = 0.10
     fisheye_principal_point_jitter: float = 0.02
     fisheye_distortion_jitter: float = 0.10
+    fisheye_mix_primary_ratio: float = 1.0
+    fisheye_mix_secondary_ratio: float = 0.0
+    fisheye_mix_random_ratio: float = 0.0
     save_epoch_data: bool = False
     epoch_data_dir: Path = Path("outputs/calibration_net_fisheye/epochs")
 

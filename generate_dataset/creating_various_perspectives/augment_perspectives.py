@@ -156,16 +156,25 @@ def generate_board_object_points(cols: int, rows: int, square_size: float) -> np
 
 def sample_camera_static_params(cfg: Dict[str, Any], w: int, h: int, rng: np.random.RandomState) -> Dict[str, Any]:
     p: Dict[str, Any] = {}
+    distortion_model = str(cfg.get("distortion_model", "brown_conrady")).lower()
+    if distortion_model not in {"brown_conrady", "fisheye"}:
+        raise ValueError("distortion_model must be 'brown_conrady' or 'fisheye'.")
+    p["distortion_model"] = distortion_model
     p["fx"] = sample_range(cfg, "fx", rng) * max(w, h)
     p["fy"] = sample_range(cfg, "fy", rng) * max(w, h)
     p["cx"] = sample_range(cfg, "principal_point_x", rng) * w
     p["cy"] = sample_range(cfg, "principal_point_y", rng) * h
     p["k1"] = sample_range(cfg, "k1", rng)
     p["k2"] = sample_range(cfg, "k2", rng)
-    p["p1"] = sample_range(cfg, "p1", rng)
-    p["p2"] = sample_range(cfg, "p2", rng)
     p["k3"] = sample_range(cfg, "k3", rng)
+    if distortion_model == "fisheye":
+        p["k4"] = sample_range(cfg, "k4", rng)
+    else:
+        p["p1"] = sample_range(cfg, "p1", rng)
+        p["p2"] = sample_range(cfg, "p2", rng)
     p["square_size"] = sample_range(cfg, "square_size", rng) * max(w, h)
+    p["physical_square_size"] = p["square_size"]
+    p["source_square_size"] = float(cfg.get("source_square_size_px", p["square_size"]))
     p["board_cols"] = int(round(sample_range(cfg, "board_cols", rng)))
     p["board_rows"] = int(round(sample_range(cfg, "board_rows", rng)))
     return p
@@ -190,8 +199,22 @@ def project_chessboard_grid(w: int, h: int, params: Dict[str, Any]) -> Tuple[np.
     rows = params["board_rows"] + 1
     board_points = generate_board_object_points(cols, rows, params["square_size"])
     camera_matrix = build_camera_matrix(w, h, params)
-    dist_coeffs = np.array([params["k1"], params["k2"], params["p1"], params["p2"], params["k3"]], dtype=float)
-    img_points, _ = cv2.projectPoints(board_points, params["rvec"], params["tvec"], camera_matrix, dist_coeffs)
+    if params.get("distortion_model", "brown_conrady") == "fisheye":
+        dist_coeffs = np.array(
+            [params["k1"], params["k2"], params["k3"], params["k4"]], dtype=float
+        ).reshape(4, 1)
+        img_points, _ = cv2.fisheye.projectPoints(
+            board_points.reshape(-1, 1, 3), params["rvec"], params["tvec"],
+            camera_matrix, dist_coeffs
+        )
+    else:
+        dist_coeffs = np.array(
+            [params["k1"], params["k2"], params["p1"], params["p2"], params["k3"]],
+            dtype=float,
+        )
+        img_points, _ = cv2.projectPoints(
+            board_points, params["rvec"], params["tvec"], camera_matrix, dist_coeffs
+        )
     img_points = img_points.reshape(rows, cols, 2)
 
     xs = np.linspace(0.0, float(w), num=cols, dtype=float)
@@ -208,7 +231,11 @@ def build_homography_from_camera_params(w: int, h: int, params: Dict[str, Any]) 
     # source image coordinates are in pixel space [0,w]x[0,h]. We must center
     # them around the camera/world origin before applying the plane homography.
     T = np.array([[1.0, 0.0, -cx], [0.0, 1.0, -cy], [0.0, 0.0, 1.0]], dtype=float)
-    H = camera_matrix @ np.hstack((R[:, :2], params["tvec"])) @ T
+    source_square_size = float(params.get("source_square_size", params["square_size"]))
+    physical_square_size = float(params.get("physical_square_size", params["square_size"]))
+    plane_scale = physical_square_size / source_square_size
+    plane_to_camera = np.hstack((R[:, :2] * plane_scale, params["tvec"]))
+    H = camera_matrix @ plane_to_camera @ T
     return H
 
 
@@ -239,6 +266,22 @@ def distort_image(img: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
     return cv2.remap(img, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=border_color)
 
 
+def distort_image_fisheye(img: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
+    """Create a fisheye-distorted image using an inverse remap."""
+    h, w = img.shape[:2]
+    K = build_camera_matrix(w, h, params)
+    D = np.array([params["k1"], params["k2"], params["k3"], params["k4"]], dtype=np.float64)
+    ys, xs = np.indices((h, w), dtype=np.float64)
+    distorted_pixels = np.stack((xs, ys), axis=-1).reshape(-1, 1, 2)
+    undistorted_pixels = cv2.fisheye.undistortPoints(distorted_pixels, K, D, P=K)
+    map_xy = undistorted_pixels.reshape(h, w, 2).astype(np.float32)
+    border_color = tuple(int(x) for x in params.get("_border_color", [255, 255, 255]))
+    return cv2.remap(
+        img, map_xy[..., 0], map_xy[..., 1], cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_CONSTANT, borderValue=border_color,
+    )
+
+
 def augment_image_camera(
     img: np.ndarray,
     params: Dict[str, Any],
@@ -256,6 +299,8 @@ def augment_image_camera(
         borderMode=cv2.BORDER_CONSTANT,
         borderValue=border_color,
     )
+    if params.get("distortion_model", "brown_conrady") == "fisheye":
+        return distort_image_fisheye(warped, params)
     return distort_image(warped, params)
 
 
@@ -416,10 +461,12 @@ def main() -> None:
         static_camera_params: Optional[Dict[str, Any]] = None
         if mode == "camera":
             static_camera_params = sample_camera_static_params_constrained(cfg, w, h, rng)
+            label_keys = ["fx", "fy", "cx", "cy", "k1", "k2", "p1", "p2", "k3"]
+            if static_camera_params.get("distortion_model") == "fisheye":
+                label_keys = ["fx", "fy", "cx", "cy", "k1", "k2", "k3", "k4"]
             camera_labels = {
-                key: static_camera_params[key]
-                for key in ["fx", "fy", "cx", "cy", "k1", "k2", "p1", "p2", "k3"]
-                if key in static_camera_params
+                "distortion_model": static_camera_params["distortion_model"],
+                **{key: static_camera_params[key] for key in label_keys if key in static_camera_params},
             }
             camera_params_path = os.path.join(sequence_outdir, "camera_params.yaml")
             with open(camera_params_path, "w") as f:

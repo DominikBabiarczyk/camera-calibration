@@ -94,6 +94,31 @@ data/aug_camera_test_seq/
 
 Do datasetu treningowego uzywaj `camera_calibration_config.yaml`, bo generuje obrazy z perspektywa, dystorsja kamery i etykietami `camera_params.yaml`. Plik `perspective_config.yaml` sluzy raczej do zwyklej augmentacji perspektywy obrazu i nie zapisuje etykiet kalibracyjnych.
 
+### Dataset fisheye z plansza 10x10
+
+Generator obsluguje rowniez model fisheye OpenCV. Najpierw mozna utworzyc plansze
+zlozona z 10x10 pol:
+
+```bash
+python generate_dataset/generate_chessboard.py \
+	--squares-x 10 --squares-y 10 --square-size 48 \
+	--output-name chessboard_10x10.png
+```
+
+Nastepnie nalezy wygenerowac obrazy z losowymi pozami szachownicy i stalymi
+parametrami kamery w obrebie sekwencji:
+
+```bash
+python generate_dataset/creating_various_perspectives/augment_perspectives.py \
+	--input generate_dataset/boards/chessboard_10x10.png \
+	--outdir data/fisheye_camera_test_seq \
+	--config generate_dataset/creating_various_perspectives/fisheye_camera_calibration_config.yaml \
+	--count 5 --sequences 1 --seed 42
+```
+
+W katalogu wynikowym zapisywane sa obrazy `aug_*.png` oraz `camera_params.yaml`.
+Plik z parametrami zawiera model `fisheye` i wspolczynniki `[k1,k2,k3,k4]`.
+
 ## Uruchamianie treningu
 
 Szybki test treningu na jednej epoce:
