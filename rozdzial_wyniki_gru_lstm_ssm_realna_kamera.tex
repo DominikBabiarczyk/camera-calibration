@@ -1,0 +1,343 @@
+% ============================================================================
+%  Rozdział: Wyniki treningu oraz testów na rzeczywistej kamerze
+%  (modele GRU, LSTM, SSM operujące na narożnikach szachownicy)
+%  Plik przeznaczony do samodzielnej kompilacji lub włączenia przez \input{}
+%  do głównego dokumentu pracy magisterskiej.
+% ============================================================================
+% (Uwaga) Ten plik jest włączany do main.tex.
+% Dlatego nie może zawierać \documentclass, \usepackage ani \begin{document}/\end{document}.
+
+\section{Wyniki treningu oraz testów na rzeczywistej kamerze modeli GRU, LSTM i SSM}
+\label{chap:wyniki-gru-lstm-ssm}
+
+\subsection{Metodyka eksperymentu}
+\label{sec:wyniki-metodyka}
+
+Trzy modele sekwencyjne opisane w rozdziale ---
+\texttt{FisheyeCornerGRUSequenceCalibrationNet},
+\texttt{FisheyeCornerLSTMSequenceCalibrationNet} oraz
+\texttt{FisheyeCornerSSMSequenceCalibrationNet} --- zostały wytrenowane na
+tych samych danych syntetycznych i ustawień, przy użyciu skryptów
+\texttt{run\_fisheye\_corner\_sequence\_training.sh},
+\texttt{run\_fisheye\_corner\_lstm\_sequence\_training.sh} oraz
+\texttt{run\_fisheye\_corner\_ssm\_sequence\_training.sh}. Wszystkie trzy
+uruchomienia treningu miały te same ustawienia: rozdzielczość
+obrazu $1920\times1080$ px, plansza $10\times10$ pól (81 wewnętrznych
+narożników), długość sekwencji $T=10$ klatek, zakresy kątów pochylenia
+$\pm45^\circ$, odchylenia $\pm45^\circ$ i przechylenia $\pm30^\circ$,
+optymalizator \texttt{AdamW} ze stopą uczenia $10^{-3}$, rozmiar paczki $64$,
+maksymalnie $100$ epok oraz wczesne zatrzymywanie (\emph{early stopping}) przy braku poprawy wyników przez $10$ epok. Jedyną różnicą pomiędzy uruchomieniami był wybór
+architektury (\texttt{--model-name}) oraz katalog wyjściowy checkpointu.
+
+Ocenę modeli po treningu przeprowadzono w dwóch niezależnych krokach:
+\begin{enumerate}[leftmargin=*]
+  \item odczyt straty walidacyjnej i numeru najlepszej epoki zapisanych w
+        punktach kontrolnych (\texttt{best\_model.pth}) każdego z trzech
+        modeli,
+  \item test na rzeczywistych zdjęciach z kamery, wykonany w notatnikach
+        \texttt{detect\_chessboard\_corners.ipynb} oraz
+        \texttt{compare\_fisheye\_calibrations.ipynb}, obejmujący detekcję
+        narożników, klasyczną kalibrację referencyjną \texttt{cv2.fisheye} [5, 8]
+        oraz predykcję parametrów przez każdy z trzech modeli na tej samej
+        sekwencji rzeczywistych obrazów.
+\end{enumerate}
+
+\subsection{Wyniki treningu}
+\label{sec:wyniki-treningu}
+
+Tabela~\ref{tab:wyniki-treningu} zestawia epokę, w której zapisano najlepszy
+checkpoint każdego modelu, oraz odpowiadającą jej wartość funkcji straty
+\emph{log-cosh} na zbiorze walidacyjnym danych syntetycznych.
+
+\begin{table}[htbp]
+  \centering
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    \textbf{Model} & \textbf{Najlepsza epoka} & \textbf{Strata walid. (log-cosh)} & \textbf{Limit epok} \\
+    \midrule
+    GRU  & 28 & 0.000993 & 100 \\
+    LSTM & 53 & \textbf{0.000978} & 100 \\
+    SSM  & \textbf{12} & 0.001099 & 100 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Wyniki treningu trzech wariantów modelu sekwencyjnego (zbiór walidacyjny syntetyczny).}
+  \label{tab:wyniki-treningu}
+\end{table}
+
+Model LSTM osiągnął najniższą stratę walidacyjną, jednak dopiero po $53$
+epokach, co --- przy dwóch warstwach rekurencyjnych --- oznacza znacząco
+dłuższy czas treningu niż w przypadku pozostałych wariantów. Model GRU
+uzyskał zbliżoną, nieznacznie wyższą stratę po $28$ epokach. Model SSM
+zatrzymał się najwcześniej (epoka $12$) z najwyższą spośród trzech wartością
+straty walidacyjnej, co sugerowałoby na tym etapie najsłabszą jakość spośród
+trzech wariantów. Jak pokazano w kolejnym podrozdziale, ranking oparty na
+stracie walidacyjnej na danych syntetycznych \emph{nie} pokrywa się z
+rankingiem uzyskanym na rzeczywistych zdjęciach z kamery.
+
+\subsection{Wyniki na syntetycznych sekwencjach testowych}
+\label{sec:wyniki-syntetyczne-sekwencje}
+
+Niezależnie od testu na rzeczywistych zdjęciach przeprowadzono ewaluację na
+dwóch zbiorach syntetycznych, z których każdy zawierał $20$ sekwencji po
+$10$ klatek i $81$ narożników w każdej klatce. Pierwszy zbiór,
+\texttt{fisheye\_corner\_test\_seq\_training\_range}, miał rozkład
+parametrów zbliżony do zakresu wykorzystanego podczas treningu. Drugi zbiór,
+\texttt{fisheye\_corner\_test\_seq}, obejmował silniejsze i szersze
+zniekształcenia, dlatego był trudniejszym testem działania modelu poza zakresem treningu. W obu przypadkach
+wartości referencyjne były znane, ponieważ punkty generowano bezpośrednio z
+modelu projekcji fisheye.
+
+W tabeli~\ref{tab:wyniki-syntetyczne-training-range} przedstawiono wyniki dla
+zbioru o zakresie treningowym. Błąd parametrów jest średnim RMSE po ośmiu
+parametrach, po ich normalizacji przez odpowiednio szerokość i wysokość
+obrazu dla parametrów pikselowych. Błąd reprojekcji jest średnią odległością
+punktu przewidzianego od punktu obserwowanego.
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    \textbf{Metoda} & \textbf{RMSE parametrów norm.} & \textbf{MAE parametrów norm.} & \textbf{Błąd reprojekcji [px]} \\
+    \midrule
+    OpenCV fisheye & \textbf{0.000019} & \textbf{0.000011} & \textbf{0.000026} \\
+    GRU            & 0.051401         & 0.040161         & 0.524564 \\
+    LSTM           & 0.050684         & 0.039301         & \textbf{0.458812} \\
+    SSM            & 0.050837         & 0.040681         & 0.498279 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Średnie wyniki kalibracji na 20 syntetycznych sekwencjach ze zbioru training range.}
+  \label{tab:wyniki-syntetyczne-training-range}
+\end{table}
+
+W zakresie zbliżonym do danych treningowych klasyczna kalibracja OpenCV
+odzyskała parametry niemal dokładnie, co jest oczekiwane dla bezszumowych
+danych syntetycznych. Wśród modeli neuronowych najlepszy średni RMSE parametrów oraz błąd reprojekcji uzyskał LSTM. Wyniki tego eksperymentu pokazują, że implementacja działa poprawnie i że modele radzą sobie z wartościami pomiędzy przykładami treningowymi. Nie jest to jednak odpowiednik testu z rzeczywistymi danymi.
+
+Na trudniejszym zbiorze \texttt{fisheye\_corner\_test\_seq} średnie RMSE
+parametrów modeli wyniosło odpowiednio $0.125374$ dla GRU, $0.123439$ dla
+LSTM oraz $0.118770$ dla SSM. W tym eksperymencie SSM uzyskał najlepszą
+zgodność parametrów, co wskazuje na lepsze działanie poza podstawowym
+zakres treningowy.
+
+Klasyczna metoda OpenCV nie zachowywała się stabilnie na tym trudniejszym
+zbiorze. Dla $9$ z $20$ sekwencji procedura inicjalizacji ekstrynsycznej
+zgłaszała błąd \texttt{InitExtrinsics}. Po zastosowaniu awaryjnego pomijania
+pojedynczej klatki część kalibracji kończyła się bez błędu, ale
+zwracała nierealne parametry, na przykład bardzo duże współczynniki
+zniekształcenia i błędne ogniskowe. Średni RMSE parametrów OpenCV wzrósł
+wtedy do $50.751156$, przy maksimum $922.919015$. Oznacza to, że klasyczny
+algorytm optymalizacyjny nie radził sobie z niektórymi kombinacjami silnej dystorsji i pozycji
+planszy, a nie że punkty syntetyczne były niepoprawne. Poprawność generatora
+potwierdzono przez ponowną projekcję punktów przy użyciu parametrów
+referencyjnych, która dawała błąd rzędu $10^{-5}$~px.
+
+Oprócz jakości zmierzono czas pojedynczego wywołania każdej metody. Pomiar
+obejmował wyłącznie kalibrację lub inferencję dla jednej sekwencji, bez
+ładowania checkpointu i inicjalizacji modelu. Wyniki przedstawiono w
+tabeli~\ref{tab:czasy-syntetyczne}.
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}lcccc@{}}
+    \toprule
+    \textbf{Metoda} & \textbf{Średnia [s]} & \textbf{Odchylenie [s]} & \textbf{Minimum [s]} & \textbf{Maksimum [s]} \\
+    \midrule
+    OpenCV fisheye & 0.030350 & 0.010211 & 0.024726 & 0.063126 \\
+    GRU            & 0.001284 & 0.002058 & 0.000692 & 0.010013 \\
+    LSTM           & 0.000970 & 0.000296 & 0.000694 & 0.001785 \\
+    SSM            & 0.001767 & 0.001350 & 0.001251 & 0.007464 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Czas pojedynczego wywołania metody na syntetycznej sekwencji, średnia z 20 sekwencji.}
+  \label{tab:czasy-syntetyczne}
+\end{table}
+
+W badanym środowisku LSTM był najszybszym modelem neuronowym, natomiast
+OpenCV wymagało średnio około $30$~ms na sekwencję. Odpowiada to około
+$24$ razy dłuższemu czasowi niż dla GRU, około $31$ razy dłuższemu niż dla
+LSTM i około $17$ razy dłuższemu niż dla SSM. Czasów tych nie należy jednak
+interpretować jako uniwersalnego rankingu sprzętowego, ponieważ zależą od
+procesora, wersji bibliotek i sposobu wywołania modelu. Pokazują one
+natomiast różnicę między iteracyjną optymalizacją klasyczną a jednorazową
+inferencją wytrenowanej sieci.
+
+\subsection{Dane testowe z rzeczywistej kamery}
+\label{sec:dane-realne}
+
+Testy na rzeczywistej kamerze wykonano na $10$ zdjęciach szachownicy
+$10\times10$ pól o boku $30$~mm, zarejestrowanych obiektywem szerokokątnym w
+rozdzielczości $1920\times1080$ px. Algorytm \texttt{findChessboardCorners}
+z doprecyzowaniem \texttt{cornerSubPix} wykrył komplet $81$ narożników na
+każdym zdjęciu. Walidacja końcowa potwierdziła brak nieudanych detekcji.
+
+Na tak przygotowanych punktach wykonano referencyjną kalibrację
+\texttt{cv2.fisheye.calibrate} [8], uzyskując globalny błąd reprojekcji
+$\mathrm{RMSE} = 0.4232$~px (dla poszczególnych zdjęć od $0.344$~px do
+$0.683$~px), przy macierzy kamery
+\begin{equation}
+  K_{\text{OpenCV}} = \begin{bmatrix}
+    1046.69 & 0 & 958.08 \\
+    0 & 1047.87 & 500.37 \\
+    0 & 0 & 1
+  \end{bmatrix}
+\end{equation}
+oraz współczynnikach dystorsji $[k_1,k_2,k_3,k_4] = [-0.06285,\ 0.00334,\
+-0.01334,\ 0.00473]$. Wynik ten stanowi punkt odniesienia
+dla oceny predykcji sieci neuronowych w kolejnym podrozdziale.
+
+\subsection{Wyniki predykcji sieci na rzeczywistej kamerze}
+\label{sec:wyniki-realne}
+
+Ta sama sekwencja $10$ rzeczywistych zdjęć (w postaci znormalizowanych i
+ustandaryzowanych cech narożników) została podana na wejście
+każdego z trzech wytrenowanych modeli. Tabela~\ref{tab:wyniki-parametry}
+zestawia parametry kalibracji wraz z błędem reprojekcji, przy
+czym błąd reprojekcji sieci obliczono metodą spójną dla wszystkich wariantów:
+punkty obrazu poddano \texttt{cv2.fisheye.undistortPoints} z użyciem
+przewidzianych $K$ i $D$, wyznaczono pozę planszy funkcją
+\texttt{cv2.solvePnP} (kamera jednostkowa, brak dystorsji), a następnie
+rzutowano punkty 3D z powrotem na obraz funkcją
+\texttt{cv2.fisheye.projectPoints} [8] przy użyciu przewidzianych $K$ i $D$.
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    \textbf{Parametr} & \textbf{OpenCV fisheye} & \textbf{GRU} & \textbf{LSTM} & \textbf{SSM} \\
+    \midrule
+    $f_x$ [px] & 1046.69 & 1050.54 & 1091.33 & 1042.73 \\
+    $f_y$ [px] & 1047.87 & 1130.83 & 1116.75 & 1041.87 \\
+    $c_x$ [px] & 958.08  & 953.35  & 956.05  & 961.52  \\
+    $c_y$ [px] & 500.37  & 490.28  & 495.73  & 499.63  \\
+    $k_1$      & $-0.06285$ & $-0.00460$ & $-0.01237$ & $-0.06070$ \\
+    $k_2$      & $0.00334$  & $0.02837$  & $0.04254$  & $0.00443$  \\
+    $k_3$      & $-0.01334$ & $-0.00109$ & $0.01457$  & $-0.01246$ \\
+    $k_4$      & $0.00473$  & $0.01751$  & $0.02388$  & $0.00347$  \\
+    \midrule
+    \textbf{RMSE reprojekcji [px]} & \textbf{0.4232} & 6.6312 & 3.0981 & \textbf{0.4799} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Parametry kalibracji przewidziane przez sieci GRU, LSTM i SSM na 10 rzeczywistych zdjęciach, na tle referencji OpenCV fisheye.}
+  \label{tab:wyniki-parametry}
+\end{table}
+
+Tabela~\ref{tab:wyniki-roznice} przedstawia te same wyniki w formie różnic
+bezwzględnych każdego modelu względem kalibracji referencyjnej OpenCV, co
+ułatwia ocenę, który wariant najwierniej odtwarza rzeczywiste parametry
+kamery.
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    \textbf{Parametr} & \textbf{$|$GRU $-$ OpenCV$|$} & \textbf{$|$LSTM $-$ OpenCV$|$} & \textbf{$|$SSM $-$ OpenCV$|$} \\
+    \midrule
+    $f_x$ [px] & \textbf{3.85}  & 44.64 & 3.96 \\
+    $f_y$ [px] & 82.96 & 68.87 & \textbf{6.00} \\
+    $c_x$ [px] & 4.73  & \textbf{2.03}  & 3.44 \\
+    $c_y$ [px] & 10.09 & 4.65  & \textbf{0.74} \\
+    $k_1$      & 0.05825 & 0.05048 & \textbf{0.00215} \\
+    $k_2$      & 0.02503 & 0.03920 & \textbf{0.00109} \\
+    $k_3$      & 0.01225 & 0.02791 & \textbf{0.00089} \\
+    $k_4$      & 0.01278 & 0.01916 & \textbf{0.00126} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Różnice bezwzględne parametrów sieci względem kalibracji OpenCV fisheye (rzeczywista kamera).}
+  \label{tab:wyniki-roznice}
+
+  \vspace{2pt}
+\end{table}
+
+Wyniki na rzeczywistej kamerze wskazują jednoznacznie, że model SSM ---
+mimo najniższej pojemności (najmniej parametrów, patrz
+tabela~\ref{tab:gru-lstm-ssm}) i najwyższej straty walidacyjnej na danych
+syntetycznych --- najlepiej przenosi się na rzeczywiste zdjęcia spośród
+trzech wariantów, osiągając błąd reprojekcji ($0.48$~px) niemal identyczny z
+klasyczną kalibracją OpenCV ($0.42$~px) oraz najmniejsze odchyłki dla
+$f_y$, $c_y$ i wszystkich współczynników dystorsji. Model GRU i model LSTM
+przewidują natomiast wyraźnie zawyżoną ogniskową $f_y$ (odpowiednio o
+$83$~px i $69$~px) oraz współczynniki dystorsji radialnej bliskie zeru
+($k_1 \approx -0.005$ i $-0.012$ zamiast $-0.063$ referencyjnego), co
+przekłada się na błędy reprojekcji wielokrotnie większe niż w przypadku
+SSM i OpenCV.
+
+Jako wizualne uzupełnienie porównania wykonano także undystorsję pojedynczego
+zdjęcia \texttt{capture\_0200\_correct.png} przy użyciu parametrów
+uzyskanych przez wszystkie cztery metody. Na rysunkach
+\ref{fig:undystorsja-opencv}--\ref{fig:undystorsja-ssm} po lewej stronie
+pokazano obraz wejściowy, a po prawej obraz po korekcji dystorsji. Zestawienie
+pozwala ocenić nie tylko wartości liczbowe błędu reprojekcji, lecz także
+wizualny wpływ przewidzianych parametrów na geometrię obrazu.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.98\textwidth]{img/capture_0200_OpenCV_fisheye.png}
+  \caption{Para obrazu przed undystorsją i po undystorsji uzyskanej z parametrów kalibracji OpenCV fisheye.}
+  \label{fig:undystorsja-opencv}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.98\textwidth]{img/capture_0200_Siec_GRU.png}
+  \caption{Para obrazu przed undystorsją i po undystorsji uzyskanej z parametrów modelu GRU.}
+  \label{fig:undystorsja-gru}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.98\textwidth]{img/capture_0200_Siec_LSTM.png}
+  \caption{Para obrazu przed undystorsją i po undystorsji uzyskanej z parametrów modelu LSTM.}
+  \label{fig:undystorsja-lstm}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.98\textwidth]{img/capture_0200_Siec_SSM.png}
+  \caption{Para obrazu przed undystorsją i po undystorsji uzyskanej z parametrów modelu SSM.}
+  \label{fig:undystorsja-ssm}
+\end{figure}
+
+\subsection{Uwaga metodologiczna dotycząca porównania z klasyczną kalibracją}
+\label{sec:uwaga-metodologiczna}
+
+Podczas przygotowywania niniejszego rozdziału wykryto i poprawiono usterkę w
+funkcji \texttt{rmse} notatnika \texttt{compare\_fisheye\_calibrations.ipynb}
+(oraz odpowiadającego mu skryptu
+\texttt{compare\_fisheye\_calibrations.py}). W pierwotnej wersji funkcja ta,
+w gałęzi obsługującej wiersz \texttt{OpenCV fisheye}, przekazywała
+współczynniki dystorsji rybiego oka $[k_1,k_2,k_3,k_4]$ bezpośrednio do
+\texttt{cv2.solvePnP} jako parametr \texttt{distCoeffs}. Funkcja
+\texttt{cv2.solvePnP} interpretuje jednak ten parametr zgodnie z konwencją
+modelu Browna--Conrady'ego ($k_1,k_2,p_1,p_2[,k_3,\dots]$), a nie modelu
+rybiego oka, co prowadziło do błędnego wyznaczenia pozy planszy i sztucznie
+zawyżonego błędu reprojekcji rzędu $44$~px dla tego jednego wiersza tabeli
+porównawczej --- w oczywistej sprzeczności z wartością $0.4232$~px
+wyznaczoną w tym samym projekcie, w notatniku
+\texttt{detect\_chessboard\_corners.ipynb}, przy użyciu wektorów rotacji i
+translacji zwróconych bezpośrednio przez \texttt{cv2.fisheye.calibrate}.
+
+Usterkę usunięto, stosując tę samą procedurę dla wszystkich czterech metod:
+punkty obrazu są zawsze najpierw przekształcane funkcją
+\texttt{cv2.fisheye.undistortPoints} przy użyciu macierzy $K$ i
+współczynników $D$ danej metody, a dopiero tak znormalizowane punkty trafiają
+do \texttt{cv2.solvePnP} wywoływanego z kamerą jednostkową i zerową
+dystorsją --- identycznie jak było to już wcześniej realizowane dla modeli
+GRU, LSTM i SSM. Po poprawce funkcja rmse zwraca dla metody OpenCV
+fisheye wartość $0.4235$~px, praktycznie identyczną z referencyjną wartością
+$0.4232$~px z notatnika kalibracyjnego (różnica $0.0003$~px wynika z tego, że
+w \texttt{compare\_fisheye\_calibrations.ipynb} poza planszy jest
+każdorazowo wyznaczana na nowo funkcją \texttt{solvePnP}, zamiast wykorzystywać
+wektory rotacji i translacji zwrócone bezpośrednio przez
+\texttt{cv2.fisheye.calibrate}). Potwierdza to, że wartości referencyjne
+OpenCV użyte w tabelach~\ref{tab:wyniki-parametry} i~\ref{tab:wyniki-roznice}
+niniejszego rozdziału ($0.4232$~px) są poprawne, a wnioski z
+podrozdziału~\ref{sec:wyniki-realne} --- w szczególności bliskość wyniku
+modelu SSM ($0.4799$~px) do wyniku klasycznej kalibracji --- pozostają w
+mocy po naprawieniu błędu w kodzie porównawczym.
+
+% koniec pliku
+
