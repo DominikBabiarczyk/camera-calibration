@@ -1,0 +1,38 @@
+mode: camera
+distortion_model: fisheye
+
+# This configuration mirrors SyntheticFisheyeCornerSequenceCalibrationDataset.
+# The trained networks saw 1920x1080 corner coordinates and 10x10 squares.
+# Number of squares in the generated board image is 10x10.
+board_cols: {min: 9, max: 9, unit: count}
+board_rows: {min: 9, max: 9, unit: count}
+square_size: {min: 0.015625, max: 0.015625, unit: max_dim_factor}
+source_square_size_px: 80
+
+# Base K from extern/XHOG-007_charuco/result.npz with the training jitter.
+# fx/fy are relative to max(image width, image height)=1920.
+fx: {min: 0.4886356, max: 0.5972210, unit: max_dim_factor}
+fy: {min: 0.4891434, max: 0.5978422, unit: max_dim_factor}
+principal_point_x: {min: 0.4782596, max: 0.5182596, unit: fraction}
+principal_point_y: {min: 0.4426034, max: 0.4826034, unit: fraction}
+
+# OpenCV fisheye coefficients D = base calibration + uniform jitter [-0.10, 0.10].
+k1: {min: -0.1613521, max: 0.0386479, unit: coeff}
+k2: {min: -0.0968694, max: 0.1031306, unit: coeff}
+k3: {min: -0.1135690, max: 0.0864310, unit: coeff}
+k4: {min: -0.0956094, max: 0.1043906, unit: coeff}
+
+pitch_deg: {min: -5, max: 5, unit: degrees}
+yaw_deg: {min: -5, max: 5, unit: degrees}
+roll_deg: {min: -5, max: 5, unit: degrees}
+tvec_x: {min: -0.2, max: 0.2, unit: width_fraction}
+tvec_y: {min: -0.15, max: 0.15, unit: height_fraction}
+tvec_z: {min: 0.4, max: 0.8, unit: max_dim_factor}
+
+samples: 5
+sequences: 1
+seed: 42
+allow_out_of_bounds: false
+max_resample_attempts: 100
+border_mode: constant
+border_color: [255, 255, 255]
